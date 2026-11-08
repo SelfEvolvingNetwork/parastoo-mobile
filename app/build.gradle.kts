@@ -13,8 +13,8 @@ android {
         applicationId = "network.selfevolving.parastoo.mobile"
         minSdk = 26
         targetSdk = 35
-        versionCode = 3
-        versionName = "0.2.1"
+        versionCode = 4
+        versionName = "0.3.0"
     }
 
     // امضای پایدار CI: همهٔ بیلدها با یک کلید (Secrets گیت‌هاب) تا هر نسخه
@@ -82,6 +82,8 @@ dependencies {
     implementation("androidx.security:security-crypto:1.1.0-alpha06")
     // شبکه: HTTPS با پین گواهی خودامضا (قرارداد access-agent)
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
+    // فراهم‌سازی سرور تازه: کلاینت SSH برای نصب پل از داخل اپ (سناریوی مالک)
+    implementation("com.hierynomus:sshj:0.38.0")
     // دیتابیس محلی پروفایل‌ها (بدون هیچ راز)
     implementation("androidx.room:room-runtime:2.6.1")
     implementation("androidx.room:room-ktx:2.6.1")

@@ -52,13 +52,13 @@ import network.selfevolving.parastoo.mobile.core.security.PinnedTrust
 import network.selfevolving.parastoo.mobile.core.security.SecretVault
 
 /**
- * فهرست سرورها + «ورود اول»: ادمین فقط آدرس + توکن ادمین را وارد می‌کند؛
- * اثرانگشت گواهی را خود اپ در اولین اتصال می‌گیرد و ثبت می‌کند (مدل SSH/TOFU —
- * دستور مالک: «خودش بسازد، از ادمین نخواهد»). دفعات بعد ورود فقط با قفل گوشی است.
+ * فهرست سرورها + نقطهٔ ورود «افزودن سرور»: مسیر اصلی جادوگر فراهم‌سازی است
+ * (فقط آدرس + رمز — اپ خودش پل را نصب می‌کند؛ سناریوی مالک 2026-11-08).
+ * مسیر دستی (آدرس + توکن، برای پلی که از قبل نصب است) در action نوار بالا است.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ServersScreen(onOpen: (Long) -> Unit) {
+fun ServersScreen(onOpen: (Long) -> Unit, onAddProvision: () -> Unit = {}) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val servers by Db.get().serverDao().observeAll().collectAsState(initial = emptyList())
@@ -69,6 +69,11 @@ fun ServersScreen(onOpen: (Long) -> Unit) {
         topBar = {
             androidx.compose.material3.TopAppBar(
                 title = { Text("پرستو موبایل") },
+                actions = {
+                    TextButton(onClick = { showAdd = true }) {
+                        Text("افزودن دستی")
+                    }
+                },
                 colors = androidx.compose.material3.TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.surface,
                 ),
@@ -76,7 +81,7 @@ fun ServersScreen(onOpen: (Long) -> Unit) {
         },
         floatingActionButton = {
             ExtendedFloatingActionButton(
-                onClick = { showAdd = true },
+                onClick = onAddProvision,
                 icon = { Icon(Icons.Filled.Add, contentDescription = null) },
                 text = { Text("افزودن سرور") },
             )
@@ -101,10 +106,12 @@ fun ServersScreen(onOpen: (Long) -> Unit) {
                 )
                 Spacer(Modifier.height(8.dp))
                 Text(
-                    "آدرس سرور اوبونتو + توکن ادمین را یک بار وارد کنید؛\nاپ خودش گواهی سرور را می‌گیرد (مثل SSH) و بعد از آن\nورود فقط با قفل گوشی انجام می‌شود.",
+                    "فقط آدرس سرور و رمز آن را وارد کنید؛\nاپ خودش پل را روی سرور تازه نصب می‌کند و\nگواهی را ثبت (TOFU) می‌کند. ورود بعدی فقط\nبا قفل گوشی است.",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
+                Spacer(Modifier.height(8.dp))
+                TextButton(onClick = onAddProvision) { Text("شروع نصب") }
             }
         } else {
             LazyColumn(
