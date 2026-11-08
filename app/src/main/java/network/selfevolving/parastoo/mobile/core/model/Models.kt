@@ -91,6 +91,42 @@ data class AuditEvent(
             else -> "other"
         }
 
+    /** عنوان فارسی دوستانه — قرارداد مالک: کاربر نباید متن خام فنی بخواند */
+    val friendlyTitle: String
+        get() = when {
+            action == "status" -> "بررسی وضعیت"
+            action == "exec" -> "اجرای فرمان روی سرور"
+            action == "exec_rejected" -> "فرمانِ ردشده"
+            action == "auth_fail" -> "تلاش ورودِ ردشده"
+            action.endsWith("_forbidden") -> "درخواستِ خارج از صلاحیت"
+            action.endsWith("_fail") -> "اقدام ناموفق"
+            action == "admin_audit_stream" -> "جریان زندهٔ رویدادها"
+            action.startsWith("admin_") -> "مدیریت: " + action.removePrefix("admin_").replace('_', ' ')
+            action == "disclose" -> "درخواست توکن گیت"
+            else -> action
+        }
+
+    /** چرا قرمز است؟ یک جملهٔ آرام‌بخش/توضیحی — فقط برای رویدادهای خطا */
+    val friendlyReason: String?
+        get() = when {
+            !isError -> null
+            timedOut -> "فرمان بیش از حد طول کشید و قطع شد"
+            action == "auth_fail" || action.endsWith("_forbidden") || action == "exec_rejected" ->
+                "پل جلوی آن ایستاد — خطری وارد نشد"
+            exitCode != null && exitCode != 0 -> "فرمان با کد خطای $exitCode تمام شد (عادی در کار توسعه)"
+            else -> "خطای گذرا — در صورت تکرار بررسی شود"
+        }
+
+    /** نمایش دوستانهٔ بازیگر رویداد */
+    val friendlyActor: String
+        get() = when (actor) {
+            "admin" -> "ادمین (اپ شما)"
+            "agent" -> "عامل توسعه"
+            "anon" -> "ناشناس"
+            "" -> "نامشخص"
+            else -> actor
+        }
+
     companion object {
         fun from(line: String): AuditEvent? = try {
             val o = JSONObject(line)

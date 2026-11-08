@@ -156,6 +156,15 @@ fun LiveMonitorScreen(serverId: Long, onBack: () -> Unit) {
         }
         Spacer(Modifier.height(8.dp))
 
+        // راهنمای رنگ — قرارداد مالک: کاربر نباید در معنای رنگ‌ها حدس بزند
+        Text(
+            "خاکستری: رویداد عادی  ·  قرمز: تلاش ردشده یا خطا — پل جلوی آسیب ایستاد",
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(horizontal = 20.dp),
+        )
+        Spacer(Modifier.height(8.dp))
+
         if (shown.isEmpty()) {
             Box(Modifier.fillMaxWidth().weight(1f)) {
                 EmptyState(
@@ -214,14 +223,13 @@ private fun EventCard(ev: AuditEvent) {
                 Spacer(Modifier.width(10.dp))
                 Column(Modifier.weight(1f)) {
                     Text(
-                        ev.action,
+                        ev.friendlyTitle,
                         style = MaterialTheme.typography.labelLarge,
-                        fontFamily = FontFamily.Monospace,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                     )
                     Text(
-                        "${ev.ts.take(19).replace('T', ' ')}  ·  ${ev.actor}  ·  ${ev.ip}" +
+                        "${ev.action}  ·  ${ev.ts.take(19).replace('T', ' ')}  ·  ${ev.friendlyActor}  ·  ${ev.ip}" +
                             (ev.durationMs?.let { "  ·  ${it}ms" } ?: ""),
                         style = MaterialTheme.typography.labelSmall,
                         color = if (ev.isError) MaterialTheme.colorScheme.onErrorContainer
@@ -229,6 +237,16 @@ private fun EventCard(ev: AuditEvent) {
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                     )
+                    ev.friendlyReason?.let { reason ->
+                        Text(
+                            reason,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = if (ev.isError) MaterialTheme.colorScheme.onErrorContainer
+                            else MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
                 }
                 if (ev.exitCode != null && ev.exitCode != 0) {
                     Badge(containerColor = MaterialTheme.colorScheme.error) {
