@@ -13,15 +13,37 @@ android {
         applicationId = "network.selfevolving.parastoo.mobile"
         minSdk = 26
         targetSdk = 35
-        versionCode = 2
-        versionName = "0.2.0"
+        versionCode = 3
+        versionName = "0.2.1"
+    }
+
+    // امضای پایدار CI: همهٔ بیلدها با یک کلید (Secrets گیت‌هاب) تا هر نسخه
+    // مستقیم روی قبلی نصب شود. روی دستگاه محلی (بدون env) امضای debug عادی.
+    signingConfigs {
+        create("ci") {
+            val ksFile = System.getenv("CI_KEYSTORE_FILE")
+            if (ksFile != null) {
+                storeFile = file(ksFile)
+                storePassword = System.getenv("ANDROID_KEYSTORE_PASSWORD")
+                keyAlias = System.getenv("ANDROID_KEY_ALIAS")
+                keyPassword = System.getenv("ANDROID_KEY_PASSWORD")
+            }
+        }
     }
 
     buildTypes {
+        debug {
+            if (System.getenv("CI_KEYSTORE_FILE") != null) {
+                signingConfig = signingConfigs.getByName("ci")
+            }
+        }
         release {
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+            if (System.getenv("CI_KEYSTORE_FILE") != null) {
+                signingConfig = signingConfigs.getByName("ci")
+            }
         }
     }
     compileOptions {
