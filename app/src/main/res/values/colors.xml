@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="bg">#101418</color>
-    <color name="ic_launcher_background">#101418</color>
+    <!-- تم روشن: زمینهٔ کرمِ سبزفام؛ تم تاریک در values-night بازنویسی می‌شود -->
+    <color name="bg">#F0F5F0</color>
+    <color name="ic_launcher_background">#103B2C</color>
 </resources>

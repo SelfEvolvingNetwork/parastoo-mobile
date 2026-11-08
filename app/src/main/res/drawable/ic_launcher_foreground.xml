@@ -1,14 +1,17 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- نشان لانچر پرستو: پرندهٔ نعنایی روی زمینهٔ سبز عمیق -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="108dp"
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
-    <!-- سپر پرستو: لانهٔ امن در جیب ادمین -->
-    <path
-        android:fillColor="#66D9A5"
-        android:pathData="M54,26 L74,33 L74,50 C74,64 66,74 54,80 C42,74 34,64 34,50 L34,33 Z" />
-    <path
-        android:fillColor="#101418"
-        android:pathData="M46,52 L52,58 L64,44 L68,48 L52,66 L42,56 Z" />
+    <group
+        android:scaleX="2.9"
+        android:scaleY="2.9"
+        android:translateX="19.2"
+        android:translateY="19.2">
+        <path
+            android:fillColor="#7FE7B4"
+            android:pathData="M2,10 C5.5,6.5 8.5,6.5 11.5,8.4 C12.2,8.9 12.6,9.3 13,9.8 C14.5,7.6 17.5,7 22,9.5 C18.5,10.3 16.2,12.2 14.8,14.2 L13.4,20.8 L12,17.4 L10.6,20.8 L9.2,14.2 C7.8,12.2 5.5,10.3 2,10 Z" />
+    </group>
 </vector>

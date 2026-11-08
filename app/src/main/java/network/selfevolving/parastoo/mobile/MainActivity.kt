@@ -8,9 +8,11 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.rounded.Lock
 import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -24,9 +26,11 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import network.selfevolving.parastoo.mobile.core.security.BiometricGate
 import network.selfevolving.parastoo.mobile.ui.AppRoot
+import network.selfevolving.parastoo.mobile.ui.components.SwallowBadge
 import network.selfevolving.parastoo.mobile.ui.theme.ParastooTheme
 
 /**
@@ -67,28 +71,34 @@ private fun LockScreen(hasGate: Boolean, onStartUnlock: () -> Unit) {
     }
     Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
         Column(
-            modifier = Modifier.fillMaxSize(),
+            modifier = Modifier.fillMaxSize().padding(32.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center,
         ) {
-            Icon(
-                Icons.Filled.Lock,
-                contentDescription = "قفل",
-                tint = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.size(56.dp),
-            )
-            Spacer(Modifier.height(16.dp))
-            Text("پرستو موبایل قفل است", style = MaterialTheme.typography.titleMedium)
+            SwallowBadge(size = 116.dp)
+            Spacer(Modifier.height(22.dp))
+            Text("پرستو موبایل", style = MaterialTheme.typography.headlineMedium)
             Spacer(Modifier.height(8.dp))
             Text(
-                if (hasGate) "برای ورود، قفل گوشی را باز کنید"
-                else "برای امنیت توصیه می‌شود قفل دستگاه (PIN/بیومتریک) فعال کنید",
+                "سرورتان — امن، ساده و همیشه همراه",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center,
             )
-            Spacer(Modifier.height(24.dp))
+            Spacer(Modifier.height(32.dp))
             if (hasGate) {
-                Button(onClick = onStartUnlock) { Text("باز کردن با قفل گوشی") }
+                Button(onClick = onStartUnlock, shape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp)) {
+                    Icon(Icons.Rounded.Lock, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(8.dp))
+                    Text("باز کردن با قفل گوشی")
+                }
+            } else {
+                Text(
+                    "برای امنیت توکن‌ها، قفل دستگاه (PIN/بیومتریک) را فعال کنید",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = TextAlign.Center,
+                )
             }
         }
     }

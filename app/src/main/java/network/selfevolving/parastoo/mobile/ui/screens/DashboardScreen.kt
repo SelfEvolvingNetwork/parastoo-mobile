@@ -1,27 +1,35 @@
 package network.selfevolving.parastoo.mobile.ui.screens
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Monitor
-import androidx.compose.material.icons.filled.VpnKey
+import androidx.compose.material.icons.rounded.Cloud
+import androidx.compose.material.icons.rounded.Dns
+import androidx.compose.material.icons.rounded.ErrorOutline
+import androidx.compose.material.icons.rounded.Memory
+import androidx.compose.material.icons.rounded.Monitor
+import androidx.compose.material.icons.rounded.Refresh
+import androidx.compose.material.icons.rounded.Schedule
+import androidx.compose.material.icons.rounded.Storage
+import androidx.compose.material.icons.rounded.VpnKey
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.AssistChip
-import androidx.compose.material3.Button
 import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
@@ -36,15 +44,19 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import network.selfevolving.parastoo.mobile.core.model.HostStatus
+import network.selfevolving.parastoo.mobile.ui.components.ActionTile
 import network.selfevolving.parastoo.mobile.ui.components.BackTopBar
-import network.selfevolving.parastoo.mobile.ui.components.ConfirmDialog
-import network.selfevolving.parastoo.mobile.ui.components.StatRow
+import network.selfevolving.parastoo.mobile.ui.components.EmptyState
+import network.selfevolving.parastoo.mobile.ui.components.StatCard
+import network.selfevolving.parastoo.mobile.ui.components.StatusDot
 import network.selfevolving.parastoo.mobile.ui.components.rememberSession
 
 /** داشبورد سرور — وضعیت زندهٔ هاست + وضعیت قلمرو عامل + کلید توقف */
@@ -92,93 +104,163 @@ fun DashboardScreen(
         }
     }
 
-    Column(
-        modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()),
-    ) {
+    Column(Modifier.fillMaxSize()) {
         BackTopBar(
             title = session?.profile?.name ?: "سرور",
             subtitle = session?.profile?.url,
             onBack = onBack,
         )
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            val s = status
-            if (s == null) {
-                Card(Modifier.fillMaxWidth()) {
-                    Column(
-                        Modifier.padding(20.dp).fillMaxWidth(),
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                    ) {
-                        if (loading) {
-                            CircularProgressIndicator(Modifier.width(28.dp).height(28.dp))
-                            Spacer(Modifier.height(8.dp))
-                        }
-                        Text(
-                            error ?: "در حال گرفتن وضعیت…",
-                            color = if (error != null) MaterialTheme.colorScheme.error
-                            else MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                        if (error != null) {
-                            Spacer(Modifier.height(8.dp))
-                            session?.api?.let { TextButton(onClick = { refresh(it) }) { Text("تلاش دوباره") } }
+        val s = session
+        if (s == null) {
+            Box(Modifier.fillMaxWidth().weight(1f)) {
+                EmptyState(
+                    modifier = Modifier.fillMaxSize().padding(24.dp),
+                    icon = Icons.Rounded.Dns,
+                    title = "این سرور آماده نیست",
+                    body = "توکن ادمین روی این گوشی پیدا نشد؛ سرور را از فهرست حذف و دوباره اضافه کنید.",
+                )
+            }
+        } else {
+            val st = status
+            Column(
+                Modifier
+                    .fillMaxWidth()
+                    .weight(1f)
+                    .verticalScroll(rememberScrollState())
+                    .padding(horizontal = 16.dp)
+                    .navigationBarsPadding()
+                    .padding(top = 4.dp, bottom = 24.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                if (st == null) {
+                    // هنوز وضعیتی نرسیده: بارگذاری یا خطا
+                    Card(Modifier.fillMaxWidth()) {
+                        Column(
+                            Modifier.padding(24.dp).fillMaxWidth(),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                        ) {
+                            if (loading) {
+                                CircularProgressIndicator(Modifier.size(28.dp), strokeWidth = 3.dp)
+                                Spacer(Modifier.height(10.dp))
+                            } else {
+                                Icon(
+                                    Icons.Rounded.ErrorOutline,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(36.dp),
+                                    tint = MaterialTheme.colorScheme.error,
+                                )
+                                Spacer(Modifier.height(10.dp))
+                            }
+                            Text(
+                                if (error != null) "به سرور وصل نمی‌شود" else "در حال گرفتن وضعیت…",
+                                style = MaterialTheme.typography.titleMedium,
+                            )
+                            error?.let {
+                                Spacer(Modifier.height(6.dp))
+                                Text(
+                                    it,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.error,
+                                    fontFamily = FontFamily.Monospace,
+                                    textAlign = TextAlign.Center,
+                                    maxLines = 3,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                            }
+                            if (error != null) {
+                                Spacer(Modifier.height(8.dp))
+                                TextButton(onClick = { refresh(s.api) }) {
+                                    Icon(
+                                        Icons.Rounded.Refresh,
+                                        null,
+                                        Modifier.size(16.dp),
+                                    )
+                                    Spacer(Modifier.width(6.dp))
+                                    Text("تلاش دوباره")
+                                }
+                            }
                         }
                     }
-                }
-            } else {
-                StatRow(
-                    "میزبان" to s.hostname,
-                    "نسخهٔ پل" to ("v" + s.version),
-                )
-                StatRow(
-                    "دیسک آزاد" to (s.diskFreeGb?.let { "%.1f گیگابایت".format(it) } ?: "—"),
-                    "رم آزاد" to (s.memAvailMb?.let { "${it / 1024} از ${s.memTotalMb?.div(1024)} گیگ" } ?: "—"),
-                )
-                StatRow(
-                    "آپ‌تایم سرور" to formatUptime(s.uptimeS),
-                    "پرستو" to (s.parastooInstallPath.ifEmpty { "نصب نشده" }),
-                )
-                Card(Modifier.fillMaxWidth()) {
-                    Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
+                } else {
+                    HeroStatusCard(st)
+                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        StatCard(
+                            "دیسک آزاد",
+                            st.diskFreeGb?.let { "%.1f گیگابایت".format(it) } ?: "—",
+                            modifier = Modifier.weight(1f),
+                            icon = Icons.Rounded.Storage,
+                        )
+                        StatCard(
+                            "رم آزاد",
+                            st.memAvailMb?.let { "${it / 1024} از ${st.memTotalMb?.div(1024)} گیگ" } ?: "—",
+                            modifier = Modifier.weight(1f),
+                            icon = Icons.Rounded.Memory,
+                        )
+                    }
+                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        StatCard(
+                            "آپ‌تایم سرور",
+                            formatUptime(st.uptimeS),
+                            modifier = Modifier.weight(1f),
+                            icon = Icons.Rounded.Schedule,
+                        )
+                        StatCard(
+                            "پرستو",
+                            if (st.parastooInstallPath.isEmpty()) "نصب نشده" else "نصب است",
+                            modifier = Modifier.weight(1f),
+                            icon = Icons.Rounded.Cloud,
+                        )
+                    }
+
+                    // قلمرو عامل + کلید توقف
+                    Card(Modifier.fillMaxWidth()) {
+                        Row(
+                            Modifier.padding(14.dp).fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
                             Column(Modifier.weight(1f)) {
                                 Text("قلمرو عامل هوش مصنوعی", style = MaterialTheme.typography.titleSmall)
+                                Spacer(Modifier.height(2.dp))
                                 Text(
                                     when {
-                                        !s.agentRealmEnabled -> "غیرفعال (توکن عامل وجود ندارد)"
-                                        s.agentRealmPaused -> "موقفاً متوقف (کلید توقف)"
-                                        else -> "فعال"
+                                        !st.agentRealmEnabled -> "غیرفعال (توکن عامل وجود ندارد)"
+                                        st.agentRealmPaused -> "موقفاً متوقف (کلید توقف)"
+                                        else -> "فعال و مجاز به اجرای دستور"
                                     },
                                     style = MaterialTheme.typography.bodySmall,
                                     color = when {
-                                        s.agentRealmPaused -> MaterialTheme.colorScheme.tertiary
-                                        s.agentRealmEnabled -> MaterialTheme.colorScheme.primary
+                                        st.agentRealmPaused -> MaterialTheme.colorScheme.tertiary
+                                        st.agentRealmEnabled -> MaterialTheme.colorScheme.primary
                                         else -> MaterialTheme.colorScheme.onSurfaceVariant
                                     },
                                 )
                             }
                             Switch(
-                                checked = s.agentRealmPaused,
-                                onCheckedChange = { pauseDialog = !s.agentRealmPaused },
-                            )
-                        }
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            AssistChip(
-                                onClick = onMonitor,
-                                label = { Text("مانیتور زنده") },
-                                leadingIcon = { Icon(Icons.Filled.Monitor, null, Modifier.height(18.dp)) },
-                            )
-                            AssistChip(
-                                onClick = onAgent,
-                                label = { Text("ایجنت و بلوک تحویل") },
-                                leadingIcon = { Icon(Icons.Filled.VpnKey, null, Modifier.height(18.dp)) },
+                                checked = st.agentRealmPaused,
+                                onCheckedChange = { pauseDialog = it },
                             )
                         }
                     }
+
+                    ActionTile(
+                        icon = Icons.Rounded.Monitor,
+                        title = "مانیتور زنده",
+                        subtitle = "هر رویداد پل، همان لحظه روی گوشی",
+                        onClick = onMonitor,
+                    )
+                    ActionTile(
+                        icon = Icons.Rounded.VpnKey,
+                        title = "ایجنت و بلوک تحویل",
+                        subtitle = "ساخت توکن عامل جدید، ابطال دسترسی",
+                        onClick = onAgent,
+                    )
+
+                    Text(
+                        "وضعیت هر ۱۵ ثانیه خودکار تازه می‌شود.",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
                 }
-                Text(
-                    "وضعیت هر ۱۵ ثانیه خودکار تازه می‌شود.",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
             }
         }
     }
@@ -196,7 +278,7 @@ fun DashboardScreen(
                 scope.launch {
                     try {
                         withContext(Dispatchers.IO) { api.pauseRealm(target, reason) }
-                        refresh(api)
+                        api.let { refresh(it) }
                     } catch (e: Exception) {
                         error = e.message
                     }
@@ -204,6 +286,50 @@ fun DashboardScreen(
             },
             onDismiss = { pauseDialog = null },
         )
+    }
+}
+
+/** کارت قهرمان وضعیت: در یک نگاه معلوم است همه‌چیز مرتب است یا نه */
+@Composable
+private fun HeroStatusCard(s: HostStatus) {
+    val healthy = s.agentRealmEnabled && !s.agentRealmPaused
+    val container = when {
+        s.agentRealmPaused -> MaterialTheme.colorScheme.tertiaryContainer
+        healthy -> MaterialTheme.colorScheme.primaryContainer
+        else -> MaterialTheme.colorScheme.surfaceVariant
+    }
+    val onContainer = when {
+        s.agentRealmPaused -> MaterialTheme.colorScheme.onTertiaryContainer
+        healthy -> MaterialTheme.colorScheme.onPrimaryContainer
+        else -> MaterialTheme.colorScheme.onSurfaceVariant
+    }
+    Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = container)) {
+        Row(
+            Modifier.padding(16.dp).fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column(Modifier.weight(1f)) {
+                Text(
+                    when {
+                        s.agentRealmPaused -> "عامل موقتاً متوقف است"
+                        healthy -> "همه‌چیز سلامت است"
+                        else -> "قلمرو عامل بسته است"
+                    },
+                    style = MaterialTheme.typography.titleMedium,
+                    color = onContainer,
+                )
+                Spacer(Modifier.height(3.dp))
+                Text(
+                    "${s.hostname} · پل v${s.version}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = onContainer,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+            Spacer(Modifier.width(10.dp))
+            StatusDot(ok = healthy)
+        }
     }
 }
 

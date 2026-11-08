@@ -1,23 +1,26 @@
 package network.selfevolving.parastoo.mobile.ui.screens
 
 import android.widget.Toast
-import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ContentCopy
-import androidx.compose.material.icons.filled.KeyOff
-import androidx.compose.material.icons.filled.VpnKey
+import androidx.compose.material.icons.rounded.ContentCopy
+import androidx.compose.material.icons.rounded.KeyOff
+import androidx.compose.material.icons.rounded.VpnKey
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -43,7 +46,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.AnnotatedString
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -51,6 +53,7 @@ import kotlinx.coroutines.withContext
 import network.selfevolving.parastoo.mobile.core.model.AgentTokenMeta
 import network.selfevolving.parastoo.mobile.core.security.SecretVault
 import network.selfevolving.parastoo.mobile.ui.components.BackTopBar
+import network.selfevolving.parastoo.mobile.ui.components.CodeBlock
 import network.selfevolving.parastoo.mobile.ui.components.ConfirmDialog
 import network.selfevolving.parastoo.mobile.ui.components.rememberSession
 
@@ -96,73 +99,97 @@ fun AgentScreen(serverId: Long, onBack: () -> Unit) {
         floatingActionButton = {
             ExtendedFloatingActionButton(
                 onClick = { showRotateDialog = true },
-                icon = { Icon(Icons.Filled.VpnKey, contentDescription = null) },
-                text = { Text("توکن و بلوک تحویل جدید") },
+                icon = { Icon(Icons.Rounded.VpnKey, contentDescription = null) },
+                text = { Text("توکن جدید") },
+                shape = RoundedCornerShape(16.dp),
             )
         },
     ) { pad ->
         Column(
-            modifier = Modifier.fillMaxSize().padding(pad).padding(16.dp).verticalScroll(rememberScrollState()),
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(pad)
+                .padding(16.dp)
+                .navigationBarsPadding()
+                .verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
+            // وضعیت دسترسی عامل
             Card(Modifier.fillMaxWidth()) {
-                Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Text("وضعیت دسترسی عامل", style = MaterialTheme.typography.titleSmall)
-                    if (meta == null) {
-                        CircularProgressIndicator(Modifier.size(20.dp))
-                    } else {
-                        Text(
-                            if (meta!!.set) "توکن عامل فعال است" else "هیچ توکن عاملی ست نشده (قلمرو بسته)",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = if (meta!!.set) MaterialTheme.colorScheme.primary
-                            else MaterialTheme.colorScheme.onSurfaceVariant,
+                Row(
+                    Modifier.padding(14.dp).fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Box(
+                        Modifier
+                            .size(44.dp)
+                            .background(
+                                MaterialTheme.colorScheme.primaryContainer,
+                                RoundedCornerShape(13.dp),
+                            ),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Icon(
+                            Icons.Rounded.VpnKey,
+                            contentDescription = null,
+                            modifier = Modifier.size(22.dp),
+                            tint = MaterialTheme.colorScheme.onPrimaryContainer,
                         )
-                        if (meta!!.label.isNotBlank()) {
+                    }
+                    Spacer(Modifier.width(12.dp))
+                    Column(Modifier.weight(1f)) {
+                        Text("وضعیت دسترسی عامل", style = MaterialTheme.typography.titleMedium)
+                        if (meta == null) {
+                            CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp)
+                        } else {
+                            Spacer(Modifier.height(2.dp))
                             Text(
-                                "برچسب: ${meta!!.label}",
+                                if (meta!!.set) "توکن عامل فعال است" else "هیچ توکن عاملی ست نشده (قلمرو بسته)",
                                 style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                color = if (meta!!.set) MaterialTheme.colorScheme.primary
+                                else MaterialTheme.colorScheme.onSurfaceVariant,
                             )
-                        }
-                        if (meta!!.rotatedAt.isNotBlank()) {
-                            Text(
-                                "آخرین تولید: ${meta!!.rotatedAt.take(19).replace('T', ' ')}",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
+                            if (meta!!.label.isNotBlank()) {
+                                Text(
+                                    "برچسب: ${meta!!.label}",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
+                            if (meta!!.rotatedAt.isNotBlank()) {
+                                Text(
+                                    "آخرین تولید: ${meta!!.rotatedAt.take(19).replace('T', ' ')}",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
                         }
                     }
-                    Text(
-                        "هر «توکن و بلوک تحویل جدید»، توکن قبلی را باطل می‌کند — برای تعویض عامل یا قطع دسترسی یک عامل فراری همین کافی است.",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
                 }
             }
 
+            Text(
+                "هر «توکن جدید»، توکن قبلی را باطل می‌کند — برای تعویض عامل یا قطع دسترسی یک عامل فراری همین کافی است.",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+
             handoffBlock?.let { block ->
                 Card(Modifier.fillMaxWidth()) {
-                    Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Text("بلوک تحویل آمادهٔ کپی", style = MaterialTheme.typography.titleSmall)
+                    Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Text("بلوک تحویل آمادهٔ کپی", style = MaterialTheme.typography.titleMedium)
                         Text(
                             "این متن را عیناً در چت عامل هوش مصنوعی خود بچسبانید. توکن فقط همین یک بار نمایش داده می‌شود.",
-                            style = MaterialTheme.typography.labelSmall,
+                            style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.tertiary,
                         )
-                        Text(
-                            block,
-                            style = MaterialTheme.typography.bodySmall,
-                            fontFamily = FontFamily.Monospace,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .horizontalScroll(rememberScrollState()),
-                        )
+                        CodeBlock(block)
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             Button(onClick = {
                                 clipboard.setText(AnnotatedString(block))
-                                Toast.makeText(context, "بلوک تحویل کپی شد ✓", Toast.LENGTH_SHORT).show()
+                                Toast.makeText(context, "بلوک تحویل کپی شد", Toast.LENGTH_SHORT).show()
                             }) {
-                                Icon(Icons.Filled.ContentCopy, null, Modifier.size(16.dp))
+                                Icon(Icons.Rounded.ContentCopy, null, Modifier.size(16.dp))
                                 Spacer(Modifier.width(6.dp))
                                 Text("کپی بلوک تحویل")
                             }
@@ -176,12 +203,23 @@ fun AgentScreen(serverId: Long, onBack: () -> Unit) {
                 Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
             }
 
-            Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)) {
+            Card(
+                Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer),
+            ) {
                 Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Filled.KeyOff, null, tint = MaterialTheme.colorScheme.error)
+                        Icon(
+                            Icons.Rounded.KeyOff,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.error,
+                        )
                         Spacer(Modifier.width(8.dp))
-                        Text("منطقهٔ خطر", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.error)
+                        Text(
+                            "منطقهٔ خطر",
+                            style = MaterialTheme.typography.titleSmall,
+                            color = MaterialTheme.colorScheme.error,
+                        )
                     }
                     Text(
                         "باطل‌کردن کامل توکن عامل: عامل فوراً ۴۰۱ می‌گیرد. برای فعال‌کردن دوباره باید توکن جدید بسازید.",
@@ -272,7 +310,7 @@ private fun RotateDialog(
                     singleLine = true,
                 )
                 Text(
-                    "⚠ توکن قبلی همین لحظه می‌میرد و بلوک تحویل تازه ساخته می‌شود. توکن در پاسخ فقط یک بار می‌آید و اپ آن را رمزنگاری‌شده نگه می‌دارد؛ هرگز در جای دیگری نشان داده نمی‌شود.",
+                    "توکن قبلی همین لحظه می‌میرد و بلوک تحویل تازه ساخته می‌شود. توکن در پاسخ فقط یک بار می‌آید و اپ آن را رمزنگاری‌شده نگه می‌دارد؛ هرگز در جای دیگری نشان داده نمی‌شود.",
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )

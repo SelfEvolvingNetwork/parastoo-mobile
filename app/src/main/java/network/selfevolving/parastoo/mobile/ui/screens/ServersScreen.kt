@@ -1,22 +1,29 @@
 package network.selfevolving.parastoo.mobile.ui.screens
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.Dns
+import androidx.compose.material.icons.rounded.Add
+import androidx.compose.material.icons.rounded.Delete
+import androidx.compose.material.icons.rounded.Dns
+import androidx.compose.material.icons.rounded.Edit
+import androidx.compose.material.icons.rounded.Security
+import androidx.compose.material.icons.rounded.VpnKey
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
@@ -29,6 +36,8 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -39,17 +48,24 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import network.selfevolving.parastoo.mobile.R
 import network.selfevolving.parastoo.mobile.core.data.Db
 import network.selfevolving.parastoo.mobile.core.data.ServerProfileEntity
 import network.selfevolving.parastoo.mobile.core.net.AccessAgentApi
 import network.selfevolving.parastoo.mobile.core.security.PinnedTrust
 import network.selfevolving.parastoo.mobile.core.security.SecretVault
+import network.selfevolving.parastoo.mobile.ui.components.BannerKind
+import network.selfevolving.parastoo.mobile.ui.components.ConfirmDialog
+import network.selfevolving.parastoo.mobile.ui.components.EmptyState
+import network.selfevolving.parastoo.mobile.ui.components.InfoBanner
 
 /**
  * فهرست سرورها + نقطهٔ ورود «افزودن سرور»: مسیر اصلی جادوگر فراهم‌سازی است
@@ -63,103 +79,100 @@ fun ServersScreen(onOpen: (Long) -> Unit, onAddProvision: () -> Unit = {}) {
     val scope = rememberCoroutineScope()
     val servers by Db.get().serverDao().observeAll().collectAsState(initial = emptyList())
     var showAdd by remember { mutableStateOf(false) }
+    var confirmDelete by remember { mutableStateOf<ServerProfileEntity?>(null) }
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
         topBar = {
-            androidx.compose.material3.TopAppBar(
-                title = { Text("پرستو موبایل") },
-                actions = {
-                    TextButton(onClick = { showAdd = true }) {
-                        Text("افزودن دستی")
+            TopAppBar(
+                title = {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            painter = painterResource(R.drawable.ic_swallow),
+                            contentDescription = null,
+                            modifier = Modifier.size(26.dp),
+                            tint = MaterialTheme.colorScheme.primary,
+                        )
+                        Spacer(Modifier.width(10.dp))
+                        Column {
+                            Text("پرستو موبایل", style = MaterialTheme.typography.titleLarge)
+                            Text(
+                                "سرورهای شما، همیشه همراه",
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
                     }
                 },
-                colors = androidx.compose.material3.TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.surface,
+                actions = {
+                    TextButton(onClick = { showAdd = true }) {
+                        Text("افزودن دستی", style = MaterialTheme.typography.labelMedium)
+                    }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.background,
                 ),
             )
         },
         floatingActionButton = {
             ExtendedFloatingActionButton(
                 onClick = onAddProvision,
-                icon = { Icon(Icons.Filled.Add, contentDescription = null) },
+                icon = { Icon(Icons.Rounded.Add, contentDescription = null) },
                 text = { Text("افزودن سرور") },
+                shape = RoundedCornerShape(16.dp),
             )
         },
     ) { pad ->
         if (servers.isEmpty()) {
-            Column(
-                modifier = Modifier.fillMaxSize().padding(pad).padding(32.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.Center,
-            ) {
-                Icon(
-                    Icons.Filled.Dns,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.size(56.dp),
-                )
-                Spacer(Modifier.height(16.dp))
-                Text(
-                    "هنوز سروری اضافه نکرده‌اید",
-                    style = MaterialTheme.typography.titleMedium,
-                )
-                Spacer(Modifier.height(8.dp))
-                Text(
-                    "فقط آدرس سرور و رمز آن را وارد کنید؛\nاپ خودش پل را روی سرور تازه نصب می‌کند و\nگواهی را ثبت (TOFU) می‌کند. ورود بعدی فقط\nبا قفل گوشی است.",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                Spacer(Modifier.height(8.dp))
-                TextButton(onClick = onAddProvision) { Text("شروع نصب") }
-            }
+            EmptyState(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(pad)
+                    .padding(horizontal = 16.dp),
+                title = "خوش آمدید!",
+                body = "سرور تازه تحویل گرفتید؟ فقط آدرس و رمز آن را وارد کنید.\n" +
+                    "پرستو خودش وصل می‌شود، پل را نصب می‌کند و گواهی‌ها را ثبت می‌کند — " +
+                    "شما هیچ‌وقت وارد سرور نمی‌شوید.",
+                actionLabel = "افزودن سرور تازه",
+                onAction = onAddProvision,
+                secondaryLabel = "افزودن دستی با توکن آماده",
+                onSecondary = { showAdd = true },
+            )
         } else {
             LazyColumn(
-                modifier = Modifier.fillMaxSize().padding(pad).padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp),
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(pad)
+                    .padding(horizontal = 16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+                contentPadding = PaddingValues(top = 8.dp, bottom = 96.dp),
             ) {
                 items(servers, key = { it.id }) { s ->
-                    Card(modifier = Modifier.fillMaxWidth()) {
-                        Row(
-                            modifier = Modifier.padding(14.dp).fillMaxWidth(),
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            Column(
-                                modifier = Modifier.weight(1f),
-                                verticalArrangement = Arrangement.spacedBy(2.dp),
-                            ) {
-                                Text(s.name, style = MaterialTheme.typography.titleMedium)
-                                Text(
-                                    s.url,
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    fontFamily = FontFamily.Monospace,
-                                )
-                                Text(
-                                    "پین: ${s.certSha256.take(12)}…${s.certSha256.takeLast(6)}",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.primary,
-                                    fontFamily = FontFamily.Monospace,
-                                )
-                            }
-                            TextButton(onClick = { onOpen(s.id) }) { Text("مدیریت") }
-                            IconButton(onClick = {
-                                scope.launch(Dispatchers.IO) {
-                                    Db.get().serverDao().delete(s)
-                                    SecretVault.deleteAll(context, s.id)
-                                }
-                            }) {
-                                Icon(
-                                    Icons.Filled.Delete,
-                                    contentDescription = "حذف سرور",
-                                    tint = MaterialTheme.colorScheme.error,
-                                )
-                            }
-                        }
-                    }
+                    ServerCard(
+                        server = s,
+                        onOpen = { onOpen(s.id) },
+                        onDelete = { confirmDelete = s },
+                    )
                 }
             }
         }
+    }
+
+    confirmDelete?.let { s ->
+        ConfirmDialog(
+            title = "«${s.name}» حذف شود؟",
+            body = "پروفایل و توکن‌های این سرور از همین گوشی پاک می‌شوند. خود سرور دست‌نخورده می‌ماند و بعداً می‌توانید دوباره اضافه‌اش کنید.",
+            confirmText = "حذف کن",
+            danger = true,
+            onConfirm = {
+                confirmDelete = null
+                scope.launch(Dispatchers.IO) {
+                    Db.get().serverDao().delete(s)
+                    SecretVault.deleteAll(context, s.id)
+                }
+            },
+            onDismiss = { confirmDelete = null },
+        )
     }
 
     if (showAdd) {
@@ -167,6 +180,68 @@ fun ServersScreen(onOpen: (Long) -> Unit, onAddProvision: () -> Unit = {}) {
             onDismiss = { showAdd = false },
             onSaved = { showAdd = false },
         )
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun ServerCard(server: ServerProfileEntity, onOpen: () -> Unit, onDelete: () -> Unit) {
+    Card(onClick = onOpen, modifier = Modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier.padding(14.dp).fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Box(
+                Modifier
+                    .size(46.dp)
+                    .background(MaterialTheme.colorScheme.primaryContainer, RoundedCornerShape(14.dp)),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    Icons.Rounded.Dns,
+                    contentDescription = null,
+                    modifier = Modifier.size(22.dp),
+                    tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                )
+            }
+            Spacer(Modifier.width(12.dp))
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(3.dp),
+            ) {
+                Text(server.name, style = MaterialTheme.typography.titleMedium)
+                Text(
+                    server.url,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    fontFamily = FontFamily.Monospace,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        Icons.Rounded.Security,
+                        contentDescription = null,
+                        modifier = Modifier.size(13.dp),
+                        tint = MaterialTheme.colorScheme.primary,
+                    )
+                    Spacer(Modifier.width(4.dp))
+                    Text(
+                        "گواهی پین شد · ${server.certSha256.take(10)}…",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.primary,
+                        fontFamily = FontFamily.Monospace,
+                    )
+                }
+            }
+            IconButton(onClick = onDelete) {
+                Icon(
+                    Icons.Rounded.Delete,
+                    contentDescription = "حذف سرور",
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
     }
 }
 
@@ -187,7 +262,7 @@ private fun AddServerDialog(onDismiss: () -> Unit, onSaved: () -> Unit) {
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("افزودن سرور اوبونتو") },
+        title = { Text("افزودن سرور اوبونتو", style = MaterialTheme.typography.titleLarge) },
         text = {
             Column(
                 modifier = Modifier.verticalScroll(rememberScrollState()),
@@ -198,6 +273,7 @@ private fun AddServerDialog(onDismiss: () -> Unit, onSaved: () -> Unit) {
                     onValueChange = { name = it },
                     label = { Text("نام دلخواه (مثلاً سرور مُحسن)") },
                     singleLine = true,
+                    leadingIcon = { Icon(Icons.Rounded.Edit, null, Modifier.size(18.dp)) },
                     modifier = Modifier.fillMaxWidth(),
                 )
                 OutlinedTextField(
@@ -212,6 +288,7 @@ private fun AddServerDialog(onDismiss: () -> Unit, onSaved: () -> Unit) {
                     },
                     label = { Text("آدرس (مثل 193.151.142.128:31563)") },
                     singleLine = true,
+                    leadingIcon = { Icon(Icons.Rounded.Dns, null, Modifier.size(18.dp)) },
                     modifier = Modifier.fillMaxWidth(),
                 )
                 OutlinedTextField(
@@ -220,9 +297,10 @@ private fun AddServerDialog(onDismiss: () -> Unit, onSaved: () -> Unit) {
                     label = { Text("توکن ادمین (ADMIN_TOKEN — فقط همین یک بار)") },
                     singleLine = true,
                     visualTransformation = PasswordVisualTransformation(),
+                    leadingIcon = { Icon(Icons.Rounded.VpnKey, null, Modifier.size(18.dp)) },
                     modifier = Modifier.fillMaxWidth(),
                 )
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                     TextButton(
                         enabled = url.isNotBlank() && adminToken.isNotBlank() && !testing,
                         onClick = {
@@ -247,31 +325,17 @@ private fun AddServerDialog(onDismiss: () -> Unit, onSaved: () -> Unit) {
                     if (testing) CircularProgressIndicator(Modifier.size(20.dp))
                 }
                 testState?.let { (ok, msg) ->
-                    Text(
-                        msg,
-                        color = if (ok) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error,
-                        style = MaterialTheme.typography.bodySmall,
+                    InfoBanner(
+                        kind = if (ok) BannerKind.Success else BannerKind.Error,
+                        text = msg,
                     )
                 }
                 fetchedFp?.let { fp ->
-                    Column {
-                        Text(
-                            "گواهی سرور دریافت و ثبت شد (اعتماد در اولین اتصال، مثل SSH):",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                        Text(
-                            fp,
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.primary,
-                            fontFamily = FontFamily.Monospace,
-                        )
-                        Text(
-                            "از این پس هر تغییر گواهی سرور، اتصال متوقف می‌شود؛ اگر روزی گواهی را عوض کردید، سرور را حذف و دوباره اضافه کنید.",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
+                    InfoBanner(
+                        kind = BannerKind.Success,
+                        title = "گواهی سرور دریافت و ثبت شد",
+                        text = "$fp\nاز این پس هر تغییر گواهی سرور، اتصال متوقف می‌شود؛ اگر روزی گواهی را عوض کردید، سرور را حذف و دوباره اضافه کنید.",
+                    )
                 }
                 Text(
                     "توکن ادمین فقط در حافظهٔ رمزنگاری‌شدهٔ خود گوشی (Android Keystore) ذخیره می‌شود و هرگز جایی ارسال/نمایش نمی‌شود.",
