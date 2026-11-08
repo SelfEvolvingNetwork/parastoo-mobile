@@ -2,7 +2,7 @@ package network.selfevolving.parastoo.mobile.core.provision
 
 import android.content.Context
 import net.schmizz.sshj.SSHClient
-import net.schmizz.sshj.transport.verification.PromiscuousVerifier
+import net.schmizz.sshj.transport.verification.HostKeyVerifier
 import net.schmizz.sshj.xfer.FileSystemFile
 import network.selfevolving.parastoo.mobile.core.net.AccessAgentApi
 import network.selfevolving.parastoo.mobile.core.security.PinnedTrust
@@ -120,13 +120,21 @@ class ServerProvisioner {
             onPhase("اتصال SSH به $host:$sshPort")
             ssh.setConnectTimeout(20_000)
             ssh.setTimeout(180_000)
-            // مدل SSH/TOFU: اولین اتصال پذیرفته و اثرانگشتش همین زیر ثبت و نشان داده
+            // مدل SSH/TOFU: اولین اتصال پذیرفته و اثرانگشتش همین‌جا ثبت و نشان داده
             // می‌شود؛ نصب دوبارهٔ همین سرور در نسخه‌های بعدی با known_hosts سخت‌گیر می‌شود.
-            ssh.addHostKeyVerifier(PromiscuousVerifier())
+            var sshHostKeyFp = ""
+            ssh.addHostKeyVerifier(object : HostKeyVerifier {
+                override fun verify(hostname: String?, port: Int, key: java.security.PublicKey?): Boolean {
+                    if (key != null) {
+                        sshHostKeyFp = sha256Hex(key.encoded)
+                        onLog("کلید میزبان (${key.algorithm}) ثبت شد: ${sshHostKeyFp.take(16)}…")
+                    }
+                    return true
+                }
+
+                override fun findExistingAlgorithms(hostname: String?, port: Int): List<String> = emptyList()
+            })
             ssh.connect(host, sshPort)
-            val hostKey: java.security.PublicKey = ssh.transport.remoteHostKey
-            val sshHostKeyFp = sha256Hex(hostKey.encoded)
-            onLog("کلید میزبان (${hostKey.algorithm}) ثبت شد: ${sshHostKeyFp.take(16)}…")
 
             // ---------- ۳) احراز با رمز + بالا بردن بسته ----------
             onPhase("احراز هویت با رمز سرور")
