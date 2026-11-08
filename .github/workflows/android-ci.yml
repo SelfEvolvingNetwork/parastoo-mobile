@@ -34,13 +34,18 @@ jobs:
           ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: |
-          if [ -z "$ANDROID_KEYSTORE_BASE64" ]; then
-            echo "::error::Secret ANDROID_KEYSTORE_BASE64 تنظیم نشده است"
+          if [ -z "$ANDROID_KEYSTORE_BASE64" ] || [ -z "$ANDROID_KEYSTORE_PASSWORD" ] || [ -z "$ANDROID_KEY_ALIAS" ] || [ -z "$ANDROID_KEY_PASSWORD" ]; then
+            echo "::error::Secretهای امضا (ANDROID_KEYSTORE_*) کامل تنظیم نشده‌اند"
             exit 1
           fi
           KS="$RUNNER_TEMP/parastoo-mobile.keystore"
           printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 -d > "$KS"
-          echo "CI_KEYSTORE_FILE=$KS" >> "$GITHUB_ENV"
+          {
+            echo "CI_KEYSTORE_FILE=$KS"
+            echo "ANDROID_KEYSTORE_PASSWORD=$ANDROID_KEYSTORE_PASSWORD"
+            echo "ANDROID_KEY_ALIAS=$ANDROID_KEY_ALIAS"
+            echo "ANDROID_KEY_PASSWORD=$ANDROID_KEY_PASSWORD"
+          } >> "$GITHUB_ENV"
 
       - name: Build debug APK
         run: gradle :app:assembleDebug --no-daemon

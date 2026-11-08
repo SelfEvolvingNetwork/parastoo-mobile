@@ -22,18 +22,21 @@ android {
     signingConfigs {
         create("ci") {
             val ksFile = System.getenv("CI_KEYSTORE_FILE")
-            if (ksFile != null) {
+            val ksPass = System.getenv("ANDROID_KEYSTORE_PASSWORD")
+            val ksAlias = System.getenv("ANDROID_KEY_ALIAS")
+            val ksKeyPass = System.getenv("ANDROID_KEY_PASSWORD")
+            if (ksFile != null && ksPass != null && ksAlias != null && ksKeyPass != null) {
                 storeFile = file(ksFile)
-                storePassword = System.getenv("ANDROID_KEYSTORE_PASSWORD")
-                keyAlias = System.getenv("ANDROID_KEY_ALIAS")
-                keyPassword = System.getenv("ANDROID_KEY_PASSWORD")
+                storePassword = ksPass
+                keyAlias = ksAlias
+                keyPassword = ksKeyPass
             }
         }
     }
 
     buildTypes {
         debug {
-            if (System.getenv("CI_KEYSTORE_FILE") != null) {
+            if (signingConfigs.getByName("ci").storeFile != null) {
                 signingConfig = signingConfigs.getByName("ci")
             }
         }
@@ -41,7 +44,7 @@ android {
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
-            if (System.getenv("CI_KEYSTORE_FILE") != null) {
+            if (signingConfigs.getByName("ci").storeFile != null) {
                 signingConfig = signingConfigs.getByName("ci")
             }
         }
