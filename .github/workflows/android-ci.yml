@@ -8,6 +8,8 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -31,3 +33,31 @@ jobs:
         with:
           name: parastoo-mobile-debug-apk
           path: app/build/outputs/apk/debug/app-debug.apk
+
+  # انتشار خودکار: هر push سبز به main یک رلیز گیت‌هاب با تگ متحرک
+  # mobile-r<run_number> می‌سازد؛ ورکر پنل پرستو همین را به بخش دانلودهای
+  # سایت می‌آورد (قرارداد کامل: README «کانال انتشار خودکار»).
+  release:
+    needs: build
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download built APK
+        uses: actions/download-artifact@v4
+        with:
+          name: parastoo-mobile-debug-apk
+          path: apk
+
+      - name: Publish release (tag mobile-r<run_number>)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="mobile-r${{ github.run_number }}"
+          mv apk/app-debug.apk parastoo-mobile-debug.apk
+          gh release create "$TAG" \
+            --repo "$GITHUB_REPOSITORY" \
+            --title "Parastoo Mobile - build $TAG" \
+            --notes "Automated CI build of commit ${GITHUB_SHA:0:7}. Install: download the APK and sideload it. The Parastoo panel Downloads page always serves the latest verified build." \
+            "parastoo-mobile-debug.apk#parastoo-mobile-debug.apk"
