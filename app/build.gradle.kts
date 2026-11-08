@@ -13,8 +13,8 @@ android {
         applicationId = "network.selfevolving.parastoo.mobile"
         minSdk = 26
         targetSdk = 35
-        versionCode = 5
-        versionName = "0.4.0"
+        versionCode = 6
+        versionName = "0.4.1"
     }
 
     // امضای پایدار CI: همهٔ بیلدها با یک کلید (Secrets گیت‌هاب) تا هر نسخه
@@ -84,6 +84,10 @@ dependencies {
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
     // فراهم‌سازی سرور تازه: کلاینت SSH برای نصب پل از داخل اپ (سناریوی مالک)
     implementation("com.hierynomus:sshj:0.38.0")
+    // BC کامل — رفع «no such algorithm: X25519 for provider BC»:
+    // اندروید BC قدیمیِ بی‌X25519 دارد و sshj آن را «ثبت‌شده» می‌پندارد؛
+    // CryptoFix نسخهٔ کامل را جای آن می‌نشاند (core/security/CryptoFix.kt)
+    implementation("org.bouncycastle:bcprov-jdk18on:1.78.1")
     // دیتابیس محلی پروفایل‌ها (بدون هیچ راز)
     implementation("androidx.room:room-runtime:2.6.1")
     implementation("androidx.room:room-ktx:2.6.1")

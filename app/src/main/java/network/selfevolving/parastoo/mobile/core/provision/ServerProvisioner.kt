@@ -4,7 +4,10 @@ import android.content.Context
 import net.schmizz.sshj.SSHClient
 import net.schmizz.sshj.transport.verification.HostKeyVerifier
 import net.schmizz.sshj.xfer.FileSystemFile
+import net.schmizz.sshj.common.Factory
+import network.selfevolving.parastoo.mobile.core.model.HostStatus
 import network.selfevolving.parastoo.mobile.core.net.AccessAgentApi
+import network.selfevolving.parastoo.mobile.core.security.CryptoFix
 import network.selfevolving.parastoo.mobile.core.security.PinnedTrust
 import java.io.BufferedReader
 import java.io.File
@@ -24,6 +27,10 @@ import java.security.SecureRandom
  *  ۴) اجرای install.sh آجنت — نصب/ارتقای idempotent؛ توکن‌ها هرگز در خروجی چاپ نمی‌شوند
  *  ۵) TOFU گواهی TLS از مسیر عمومی + تطبیق با CERT_SHA256 گزارش نصب
  *  ۶) تست نهایی /api/status با توکن ادمین تازه
+ *
+ * قرارداد مالکیت (فرمان مالک، 2026-11-08): «رمز روت = مالکیت» — نصب همیشه توکن‌های
+ * تازهٔ این گوشی را جایگزین می‌کند (ACCESS_AGENT_RESET_TOKENS=1)؛ چه سرور تازه باشد
+ * چه از قبل پل داشته باشد. هیچ گزینه‌ای از کاربر پرسیده نمی‌شود.
  *
  * رمز سرور فقط در همین فراخوانی استفاده و «هیچ‌گاه» ذخیره نمی‌شود.
  */
@@ -59,7 +66,6 @@ class ServerProvisioner {
         sshPort: Int,
         password: String,
         agentPort: Int,
-        resetTokens: Boolean = false,
         onPhase: (String) -> Unit = {},
         onLog: (String) -> Unit = {},
     ): ProvisionResult {
@@ -67,6 +73,9 @@ class ServerProvisioner {
         require(password.isNotBlank()) { "رمز سرور خالی است" }
         require(agentPort in 1..65535) { "پورت پل نامعتبر است" }
         require(sshPort in 1..65535) { "پورت SSH نامعتبر است" }
+
+        // تضمین BC کامل پیش از هر کار sshj (رفع «no such algorithm: X25519»)
+        CryptoFix.ensure()
 
         // ---------- ۱) بستهٔ نصب داخل APK ----------
         onPhase("بررسی بستهٔ نصب داخل اپ")
@@ -92,12 +101,13 @@ class ServerProvisioner {
         val remoteWork = "/tmp/parastoo-provision-$stamp"
 
         localBundle.writeBytes(bundleBytes)
+        // «رمز روت = مالکیت»: همیشه توکن‌های تازهٔ این گوشی جایگزین می‌شوند — بدون هیچ سؤالی
         localEnv.writeText(
             buildString {
                 appendLine("ACCESS_AGENT_PORT=$agentPort")
                 appendLine("ACCESS_AGENT_ADMIN_TOKEN=$adminToken")
                 appendLine("ACCESS_AGENT_AGENT_TOKEN=$agentToken")
-                if (resetTokens) appendLine("ACCESS_AGENT_RESET_TOKENS=1")
+                appendLine("ACCESS_AGENT_RESET_TOKENS=1")
             }
         )
         localEnv.deleteOnExit(); localBundle.deleteOnExit()
@@ -117,6 +127,16 @@ class ServerProvisioner {
 
         val ssh = SSHClient()
         try {
+            // فالبک ضدتوقف: اگر به هر دلیلی X25519 در این دستگاه نبود، curve25519 از
+            // فهرست تبادل کلید حذف می‌شود تا نصب با ecdh-sha2-nistp256 پیش برود.
+            if (!CryptoFix.x25519Available()) {
+                ssh.config.keyExchangeFactories = ssh.config.keyExchangeFactories
+                    .filterNot { f: Factory.Named<net.schmizz.sshj.transport.kex.KeyExchange> ->
+                        f.name.startsWith("curve25519")
+                    }
+                onLog("هشدار: X25519 در این دستگاه نیست — تبادل کلید با ECDH انجام می‌شود")
+            }
+
             // ---------- ۲) اتصال SSH — TOFU کلید میزبان ----------
             onPhase("اتصال SSH به $host:$sshPort")
             ssh.setConnectTimeout(20_000)
@@ -186,23 +206,36 @@ class ServerProvisioner {
             onLog("اثرانگشت گواهی تأیید شد: ${netFp.take(16)}…")
 
             // ---------- ۶) تست نهایی با توکن ادمین تازه ----------
+            // سرویس تازه ری‌استارت شده؛ چند بار با فاصلهٔ کوتاه امتحان می‌کنیم تا
+            // «هنوز بالا نیامده» با «خطای واقعی» اشتباه گرفته نشود.
             onPhase("تست نهایی API پل")
             val api = AccessAgentApi(agentUrl, netFp, adminToken)
-            val st = try {
-                api.status()
-            } catch (e: AccessAgentApi.ApiException) {
-                if (e.code == 401 || e.code == 403) {
-                    throw IllegalStateException(
-                        "این سرور از قبل پل دارد و توکنش با توکن تازهٔ این گوشی نمی‌خواند. " +
-                            "اگر مالک همان سرور هستید، در «تنظیمات پیشرفته» گزینهٔ «انتقال مالکیت» را " +
-                            "بزنید تا توکن‌ها به این گوشی منتقل و توکن‌های قبلی باطل شوند.",
-                        e,
-                    )
+            var lastApiError: AccessAgentApi.ApiException? = null
+            var st: HostStatus? = null
+            for (attempt in 1..3) {
+                try {
+                    st = api.status()
+                    lastApiError = null
+                    break
+                } catch (e: AccessAgentApi.ApiException) {
+                    lastApiError = e
+                    if (e.code != 401 && e.code != 403 && e.code != 502 && e.code != 503) throw e
+                    if (attempt < 3) {
+                        try { Thread.sleep(2_500L) } catch (_: InterruptedException) { Thread.currentThread().interrupt() }
+                    }
                 }
-                throw e
+            }
+            val status = st ?: run {
+                val e = lastApiError
+                throw IllegalStateException(
+                    "نصب کامل شد ولی تأیید نهایی ناکام ماند" +
+                        (e?.let { " (کد ${it.code})" } ?: "") +
+                        ". چند لحظه بعد دوباره تلاش کنید.",
+                    e,
+                )
             }
             onPhase("انجام شد")
-            onLog("پل v${st.version} روی «${st.hostname}» آماده است")
+            onLog("پل v${status.version} روی «${status.hostname}» آماده است")
 
             return ProvisionResult(
                 agentUrl = agentUrl,
@@ -210,8 +243,8 @@ class ServerProvisioner {
                 adminToken = adminToken,
                 agentToken = agentToken,
                 sshHostKeyFp = sshHostKeyFp,
-                hostname = st.hostname,
-                agentVersion = st.version,
+                hostname = status.hostname,
+                agentVersion = status.version,
             )
         } finally {
             runCatching { ssh.disconnect() }

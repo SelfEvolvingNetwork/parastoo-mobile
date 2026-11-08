@@ -40,7 +40,6 @@ import androidx.compose.material.icons.rounded.Visibility
 import androidx.compose.material.icons.rounded.VisibilityOff
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -134,7 +133,6 @@ fun ProvisionScreen(onDone: () -> Unit) {
     var password by remember { mutableStateOf("") }
     var showPassword by remember { mutableStateOf(false) }
     var advanced by remember { mutableStateOf(false) }
-    var resetTokens by remember { mutableStateOf(false) }
 
     var running by remember { mutableStateOf(false) }
     var phase by remember { mutableStateOf("") }
@@ -229,7 +227,6 @@ fun ProvisionScreen(onDone: () -> Unit) {
                         password = password,
                         showPassword = showPassword,
                         advanced = advanced,
-                        resetTokens = resetTokens,
                         error = error,
                         onName = { name = it },
                         onHost = { host = it },
@@ -238,7 +235,6 @@ fun ProvisionScreen(onDone: () -> Unit) {
                         onPassword = { password = it },
                         onTogglePassword = { showPassword = !showPassword },
                         onAdvanced = { advanced = it },
-                        onResetTokens = { resetTokens = it },
                         onInstall = {
                             scope.launch {
                                 running = true
@@ -253,14 +249,13 @@ fun ProvisionScreen(onDone: () -> Unit) {
                                             sshPort = sshPort.trim().toIntOrNull() ?: 22,
                                             password = password,
                                             agentPort = agentPort.trim().toIntOrNull() ?: 31563,
-                                            resetTokens = resetTokens,
                                             onPhase = { p -> phase = p },
                                             onLog = { line -> log(line) },
                                         )
                                     }
                                     result = res
                                 } catch (e: Exception) {
-                                    error = e.message ?: e.javaClass.simpleName
+                                    error = friendlyError(e)
                                     log("خطا: $error")
                                 } finally {
                                     running = false
@@ -276,6 +271,38 @@ fun ProvisionScreen(onDone: () -> Unit) {
 
 // ---------- حالت فرم: فقط آدرس + رمز ----------
 
+// ---------- نگاشت خطا به زبان آدمیزاد — کاربر نباید متن استثنای فنی ببیند ----------
+
+private fun friendlyError(e: Throwable): String {
+    val msg = (e.message ?: "").lowercase()
+    return when {
+        // خطاهای خودمان که از قبل فارسی و روشن‌اند
+        e is IllegalStateException -> e.message ?: "خطا"
+        // احراز هویت SSH
+        e is net.schmizz.sshj.userauth.UserAuthException ->
+            "رمز سرور اشتباه است یا ورود root با رمز روی این سرور مجاز نیست. رمز را دوباره بررسی کنید."
+        // نشانی و مسیر
+        e is java.net.UnknownHostException ->
+            "آدرس سرور پیدا نشد؛ املای آدرس و اتصال اینترنت گوشی را بررسی کنید."
+        e is java.net.ConnectException || e is java.net.NoRouteToHostException ||
+            e is java.net.PortUnreachableException ->
+            "اتصال به سرور ممکن نشد؛ ممکن است پورت SSH در فایروال سرور بسته باشد یا آدرس اشتباه باشد."
+        e is java.net.SocketTimeoutException ->
+            "سرور سرِ وقت جواب نداد؛ اتصال شبکه یا فایروال را بررسی کنید و دوباره تلاش کنید."
+        // الگوریتم رمزنگاری (نباید بعد از r10 رخ دهد — ولی اگر شد، روشن بگوییم)
+        msg.contains("algorithm") || msg.contains("x25519") ->
+            "این دستگاه از رمزنگاری موردنیاز پشتیبانی نمی‌کند؛ نسخهٔ اندروید را به‌روز کنید یا با پشتیبانی تماس بگیرید."
+        msg.contains("auth fail") ->
+            "رمز سرور اشتباه است؛ دوباره بررسی کنید."
+        else ->
+            e.message?.takeIf { it.isNotBlank() } ?: "خطای غیرمنتظره — دوباره تلاش کنید."
+    }
+}
+
+private fun isConnectivityIssue(errorText: String): Boolean =
+    errorText.contains("فایروال") || errorText.contains("پیدا نشد") ||
+        errorText.contains("جواب نداد") || errorText.contains("اتصال به سرور ممکن نشد")
+
 @Composable
 private fun FormView(
     name: String,
@@ -285,7 +312,6 @@ private fun FormView(
     password: String,
     showPassword: Boolean,
     advanced: Boolean,
-    resetTokens: Boolean,
     error: String?,
     onName: (String) -> Unit,
     onHost: (String) -> Unit,
@@ -294,7 +320,6 @@ private fun FormView(
     onPassword: (String) -> Unit,
     onTogglePassword: () -> Unit,
     onAdvanced: (Boolean) -> Unit,
-    onResetTokens: (Boolean) -> Unit,
     onInstall: () -> Unit,
 ) {
     Column(
@@ -410,28 +435,11 @@ private fun FormView(
                         modifier = Modifier.weight(1f),
                     )
                 }
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(12.dp))
-                        .clickable { onResetTokens(!resetTokens) },
-                ) {
-                    Checkbox(checked = resetTokens, onCheckedChange = { onResetTokens(it) })
-                    Column {
-                        Text("انتقال مالکیت پل به این گوشی", style = MaterialTheme.typography.bodySmall)
-                        Text(
-                            "فقط وقتی سرور از قبل پل دارد؛ توکن‌های قبلی باطل می‌شوند.",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-                }
             }
         }
 
         Text(
-            "نکتهٔ امنیتی: رمز فقط داخل کانال رمزنگاری‌شدهٔ SSH برای نصب استفاده و بلافاصله فراموش می‌شود؛ توکن‌ها را خودِ گوشی می‌سازد و سرور فقط هش‌شان را نگه می‌دارد.",
+            "نکتهٔ امنیتی: رمز فقط داخل کانال رمزنگاری‌شدهٔ SSH برای نصب استفاده و بلافاصله فراموش می‌شود؛ توکن‌ها را خودِ گوشی می‌سازد و سرور فقط هش‌شان را نگه می‌دارد. اگر سرور قبلاً پل داشته باشد، مالکیت بی‌سروصدا به این گوشی منتقل و توکن‌های قبلی باطل می‌شوند.",
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
@@ -446,7 +454,11 @@ private fun FormView(
         error?.let {
             InfoBanner(kind = BannerKind.Error, title = "نصب ناتمام ماند", text = it)
             Text(
-                "عمدتاً آدرس، رمز یا پورت اشتباه است؛ اصلاح کنید و دوباره تلاش کنید.",
+                if (isConnectivityIssue(it)) {
+                    "می‌توانید از یک رایانه هم امتحان کنید: ping به همین آدرس، بگیرد یعنی مسیر شبکه باز است و مشکل از رمز یا پورت است."
+                } else {
+                    "اصلاح کنید و دوباره تلاش کنید؛ اطلاعات شما در همین صفحه باقی می‌ماند."
+                },
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
