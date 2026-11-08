@@ -145,7 +145,7 @@ fun DashboardScreen(
                                     when {
                                         !s.agentRealmEnabled -> "غیرفعال (توکن عامل وجود ندارد)"
                                         s.agentRealmPaused -> "موقفاً متوقف (کلید توقف)"
-                                        else -> "فعال",
+                                        else -> "فعال"
                                     },
                                     style = MaterialTheme.typography.bodySmall,
                                     color = when {
