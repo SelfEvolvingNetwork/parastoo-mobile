@@ -22,6 +22,7 @@ import androidx.compose.material.icons.rounded.Memory
 import androidx.compose.material.icons.rounded.Monitor
 import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.icons.rounded.Schedule
+import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material.icons.rounded.Storage
 import androidx.compose.material.icons.rounded.VpnKey
 import androidx.compose.material3.AlertDialog
@@ -59,12 +60,13 @@ import network.selfevolving.parastoo.mobile.ui.components.StatCard
 import network.selfevolving.parastoo.mobile.ui.components.StatusDot
 import network.selfevolving.parastoo.mobile.ui.components.rememberSession
 
-/** داشبورد سرور — وضعیت زندهٔ هاست + وضعیت قلمرو عامل + کلید توقف */
+/** داشبورد سرور — وضعیت زندهٔ هاست + وضعیت قلمرو عامل + کلید توقف + مدیریت پرستو */
 @Composable
 fun DashboardScreen(
     serverId: Long,
     onMonitor: () -> Unit,
     onAgent: () -> Unit,
+    onLifecycle: () -> Unit,
     onBack: () -> Unit,
 ) {
     val session = rememberSession(serverId)
@@ -253,6 +255,12 @@ fun DashboardScreen(
                         title = "ایجنت و بلوک تحویل",
                         subtitle = "ساخت توکن عامل جدید، ابطال دسترسی",
                         onClick = onAgent,
+                    )
+                    ActionTile(
+                        icon = Icons.Rounded.Settings,
+                        title = "مدیریت پرستو",
+                        subtitle = "نصب، حذف کامل، نصب مجدد و به‌روزرسانی — بدون ورود به سرور",
+                        onClick = onLifecycle,
                     )
 
                     Text(

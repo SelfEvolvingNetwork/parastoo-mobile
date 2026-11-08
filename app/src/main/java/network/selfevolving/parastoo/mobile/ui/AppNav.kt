@@ -6,6 +6,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import network.selfevolving.parastoo.mobile.ui.screens.AgentScreen
 import network.selfevolving.parastoo.mobile.ui.screens.DashboardScreen
+import network.selfevolving.parastoo.mobile.ui.screens.LifecycleScreen
 import network.selfevolving.parastoo.mobile.ui.screens.LiveMonitorScreen
 import network.selfevolving.parastoo.mobile.ui.screens.ProvisionScreen
 import network.selfevolving.parastoo.mobile.ui.screens.ServersScreen
@@ -29,8 +30,13 @@ fun AppRoot() {
                 serverId = id,
                 onMonitor = { nav.navigate("monitor/$id") },
                 onAgent = { nav.navigate("agent/$id") },
+                onLifecycle = { nav.navigate("lifecycle/$id") },
                 onBack = { nav.popBackStack() },
             )
+        }
+        composable("lifecycle/{id}") { entry ->
+            val id = entry.arguments?.getString("id")?.toLongOrNull() ?: return@composable
+            LifecycleScreen(serverId = id, onBack = { nav.popBackStack() })
         }
         composable("monitor/{id}") { entry ->
             val id = entry.arguments?.getString("id")?.toLongOrNull() ?: return@composable

@@ -19,6 +19,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -26,7 +27,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import network.selfevolving.parastoo.mobile.core.security.BiometricGate
 import network.selfevolving.parastoo.mobile.ui.AppRoot
@@ -42,22 +45,26 @@ class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
-            ParastooTheme {
-                val hasGate = BiometricGate.available(this)
-                var unlocked by remember { mutableStateOf(!hasGate) }
-                if (unlocked) {
-                    AppRoot()
-                } else {
-                    LockScreen(
-                        hasGate = hasGate,
-                        onStartUnlock = {
-                            BiometricGate.unlock(
-                                this,
-                                onSuccess = { unlocked = true },
-                                onError = { },
-                            )
-                        },
-                    )
+            // اپ فارسی‌است — چیدمان همیشه راست‌به‌چپ، مستقل از زبانِ دستگاه
+            // (دستور مالک 2026-11-08: متن‌های فارسی باید راست به چپ باشند)
+            CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl) {
+                ParastooTheme {
+                    val hasGate = BiometricGate.available(this)
+                    var unlocked by remember { mutableStateOf(!hasGate) }
+                    if (unlocked) {
+                        AppRoot()
+                    } else {
+                        LockScreen(
+                            hasGate = hasGate,
+                            onStartUnlock = {
+                                BiometricGate.unlock(
+                                    this,
+                                    onSuccess = { unlocked = true },
+                                    onError = { },
+                                )
+                            },
+                        )
+                    }
                 }
             }
         }

@@ -101,6 +101,17 @@ data class AuditEvent(
             action.endsWith("_forbidden") -> "درخواستِ خارج از صلاحیت"
             action.endsWith("_fail") -> "اقدام ناموفق"
             action == "admin_audit_stream" -> "جریان زندهٔ رویدادها"
+            action == "admin_parastoo_status" -> "وضعیت پرستو"
+            action.startsWith("admin_parastoo_") -> {
+                val op = action.removePrefix("admin_parastoo_").substringBefore('_')
+                "پرستو: " + when (op) {
+                    "install" -> "نصب"
+                    "uninstall" -> "حذف کامل"
+                    "reinstall" -> "نصب مجدد"
+                    "update" -> "به‌روزرسانی"
+                    else -> op
+                }
+            }
             action.startsWith("admin_") -> "مدیریت: " + action.removePrefix("admin_").replace('_', ' ')
             action == "disclose" -> "درخواست توکن گیت"
             else -> action
@@ -147,5 +158,37 @@ data class AuditEvent(
         } catch (e: Exception) {
             null
         }
+    }
+}
+
+/** وضعیت چرخهٔ عمر پرستو روی سرور (پل v0.5) — نصب/حذف/به‌روزرسانی از موبایل */
+data class LifecycleStatus(
+    val installed: Boolean,
+    val installPath: String,
+    val version: String,
+    val busy: Boolean,
+    val action: String,
+    val exitCode: Int?,
+    val okLast: Boolean?,
+    val durationS: Long?,
+    val logTail: List<String>,
+) {
+    val logText: String get() = logTail.joinToString("\n")
+
+    companion object {
+        fun from(o: JSONObject): LifecycleStatus = LifecycleStatus(
+            installed = o.optBoolean("installed", false),
+            installPath = o.optString("install_path"),
+            version = o.optString("version"),
+            busy = o.optBoolean("busy", false),
+            action = o.optString("action"),
+            exitCode = if (o.has("exit_code") && !o.isNull("exit_code")) o.getInt("exit_code") else null,
+            okLast = if (o.has("ok_last") && !o.isNull("ok_last")) o.getBoolean("ok_last") else null,
+            durationS = if (o.has("duration_s") && !o.isNull("duration_s")) o.getLong("duration_s") else null,
+            logTail = buildList {
+                val arr = o.optJSONArray("log_tail") ?: return@buildList
+                for (i in 0 until arr.length()) add(arr.optString(i))
+            },
+        )
     }
 }

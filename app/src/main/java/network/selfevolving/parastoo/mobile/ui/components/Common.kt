@@ -42,6 +42,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -53,11 +54,13 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -385,7 +388,8 @@ fun InfoBanner(
     }
 }
 
-/** بلوک کد/متن فنی روی زمینهٔ ترمینال تیره (بلوک تحویل و اثرانگشت‌ها) */
+/** بلوک کد/متن فنی روی زمینهٔ ترمینال تیره — متن فنی لاتین است، پس این‌جا
+ *  چیدمان داخلی همیشه چپ‌به‌راست می‌ماند (حتی داخل اپِ راست‌به‌چپ) */
 @Composable
 fun CodeBlock(text: String, modifier: Modifier = Modifier) {
     Box(
@@ -394,13 +398,15 @@ fun CodeBlock(text: String, modifier: Modifier = Modifier) {
             .background(TerminalBg, RoundedCornerShape(14.dp))
             .padding(12.dp),
     ) {
-        Text(
-            text,
-            color = TerminalText,
-            style = MaterialTheme.typography.bodySmall,
-            fontFamily = FontFamily.Monospace,
-            modifier = Modifier.horizontalScroll(rememberScrollState()),
-        )
+        CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
+            Text(
+                text,
+                color = TerminalText,
+                style = MaterialTheme.typography.bodySmall,
+                fontFamily = FontFamily.Monospace,
+                modifier = Modifier.horizontalScroll(rememberScrollState()),
+            )
+        }
     }
 }
 

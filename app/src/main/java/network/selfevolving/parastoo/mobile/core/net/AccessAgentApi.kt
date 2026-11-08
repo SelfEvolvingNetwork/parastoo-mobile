@@ -3,6 +3,7 @@ package network.selfevolving.parastoo.mobile.core.net
 import network.selfevolving.parastoo.mobile.core.model.AgentTokenMeta
 import network.selfevolving.parastoo.mobile.core.model.AuditEvent
 import network.selfevolving.parastoo.mobile.core.model.HostStatus
+import network.selfevolving.parastoo.mobile.core.model.LifecycleStatus
 import network.selfevolving.parastoo.mobile.core.security.PinnedTrust
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
@@ -83,6 +84,17 @@ class AccessAgentApi(
 
     /** بلوک تحویل آمادهٔ کپی برای عامل هوش مصنوعی */
     fun handoff(): String = get("/api/admin/handoff").optString("block")
+
+    /** وضعیت چرخهٔ عمر پرستو: نصب‌بودن، عملیات جاری، تهٔ لاگ (پل v0.5) */
+    fun parastooLifecycle(): LifecycleStatus =
+        LifecycleStatus.from(get("/api/admin/parastoo/lifecycle-status"))
+
+    /** اجرای یک عملیات چرخهٔ عمر؛ عملیات تخریبی، نام عملیات را به‌عنوان confirm می‌خواهند */
+    fun parastooLifecycleAction(action: String): JSONObject =
+        post(
+            "/api/admin/parastoo/$action",
+            JSONObject().put("confirm", action),
+        )
 
     companion object {
         /** نرمال‌سازی ورودی URL ادمین: «193.151.142.128:31563» یا با https هر دو قبول */
