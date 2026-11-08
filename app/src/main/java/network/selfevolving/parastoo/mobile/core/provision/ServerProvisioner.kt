@@ -70,7 +70,8 @@ class ServerProvisioner {
 
         // ---------- ۱) بستهٔ نصب داخل APK ----------
         onPhase("بررسی بستهٔ نصب داخل اپ")
-        val bundleBytes = context.assets.open("provision/access-agent-bundle.tar.gz").use { it.readBytes() }
+        // پسوند خنثی (.bin): AAPT پسوند gz را از اسم asset حذف می‌کند — r8 آموختیم
+        val bundleBytes = context.assets.open("provision/access-agent-bundle.bin").use { it.readBytes() }
         val expectedSha = context.assets.open("provision/access-agent-bundle.sha256")
             .bufferedReader().readLine().trim().split(Regex("\\s+")).first()
         val actualSha = sha256Hex(bundleBytes)

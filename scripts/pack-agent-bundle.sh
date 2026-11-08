@@ -13,11 +13,12 @@ for f in access_agent install.sh uninstall.sh bootstrap.sh deploy; do
   [ -e "$SRC/$f" ] || { echo "missing: $SRC/$f" >&2; exit 1; }
 done
 
-T="$OUT/access-agent-bundle.tar.gz"
+T="$OUT/access-agent-bundle.bin"
 tar -czf "$T" -C "$SRC" \
   --exclude='__pycache__' --exclude='*.pyc' --exclude='.git' \
   access_agent install.sh uninstall.sh bootstrap.sh deploy docs
 
-( cd "$OUT" && sha256sum access-agent-bundle.tar.gz | awk '{print $1}' > access-agent-bundle.sha256 )
+# پسوند خنثی .bin الزامی است: AAPT پسوند gz را از اسم asset داخل APK حذف می‌کند
+( cd "$OUT" && sha256sum access-agent-bundle.bin | awk '{print $1}' > access-agent-bundle.sha256 )
 echo "packed: $T ($(stat -c%s "$T") bytes)"
 echo "sha256: $(cat "$OUT/access-agent-bundle.sha256")"
