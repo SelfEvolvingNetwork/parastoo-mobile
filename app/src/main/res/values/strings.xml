@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">پرستو موبایل</string>
+    <string name="unlock_title">ورود به پرستو موبایل</string>
+    <string name="unlock_subtitle">با قفل گوشی (اثر انگشت / چهره / PIN) وارد شوید</string>
+</resources>
