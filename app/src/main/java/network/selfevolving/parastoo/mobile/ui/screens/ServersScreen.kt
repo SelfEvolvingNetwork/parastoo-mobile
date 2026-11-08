@@ -52,8 +52,9 @@ import network.selfevolving.parastoo.mobile.core.security.PinnedTrust
 import network.selfevolving.parastoo.mobile.core.security.SecretVault
 
 /**
- * فهرست سرورها + «ورود اول»: ادمین آدرس + اثرانگشت گواهی + توکن ادمین را
- * همین‌جا وارد می‌کند؛ دفعات بعد ورود فقط با قفل گوشی انجام می‌شود.
+ * فهرست سرورها + «ورود اول»: ادمین فقط آدرس + توکن ادمین را وارد می‌کند؛
+ * اثرانگشت گواهی را خود اپ در اولین اتصال می‌گیرد و ثبت می‌کند (مدل SSH/TOFU —
+ * دستور مالک: «خودش بسازد، از ادمین نخواهد»). دفعات بعد ورود فقط با قفل گوشی است.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -100,7 +101,7 @@ fun ServersScreen(onOpen: (Long) -> Unit) {
                 )
                 Spacer(Modifier.height(8.dp))
                 Text(
-                    "آدرس سرور اوبونتو + اثرانگشت گواهی + توکن ادمین را\nیک بار وارد کنید؛ بعد از آن با قفل گوشی وارد می‌شوید.",
+                    "آدرس سرور اوبونتو + توکن ادمین را یک بار وارد کنید؛\nاپ خودش گواهی سرور را می‌گیرد (مثل SSH) و بعد از آن\nورود فقط با قفل گوشی انجام می‌شود.",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -167,15 +168,15 @@ private fun AddServerDialog(onDismiss: () -> Unit, onSaved: () -> Unit) {
     val context = LocalContext.current
     var name by remember { mutableStateOf("") }
     var url by remember { mutableStateOf("") }
-    var fingerprint by remember { mutableStateOf("") }
     var adminToken by remember { mutableStateOf("") }
+    // اثرانگشتی که اپ در اولین اتصال خودش گرفته (TOFU)؛ با تغییر آدرس باطل می‌شود
+    var fetchedFp by remember { mutableStateOf<String?>(null) }
     var testState by remember { mutableStateOf<Pair<Boolean, String>?>(null) }
     var testing by remember { mutableStateOf(false) }
     var err by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
 
-    val fpOk = PinnedTrust.isValidFingerprint(fingerprint)
-    val canSave = name.isNotBlank() && url.isNotBlank() && fpOk && adminToken.isNotBlank()
+    val canSave = name.isNotBlank() && url.isNotBlank() && adminToken.isNotBlank()
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -194,20 +195,16 @@ private fun AddServerDialog(onDismiss: () -> Unit, onSaved: () -> Unit) {
                 )
                 OutlinedTextField(
                     value = url,
-                    onValueChange = { url = it },
+                    onValueChange = {
+                        // اثرانگشت به آدرس گره خورده است؛ تغییر آدرس یعنی واکشی دوباره
+                        if (it != url) {
+                            fetchedFp = null
+                            testState = null
+                        }
+                        url = it
+                    },
                     label = { Text("آدرس (مثل 193.151.142.128:31563)") },
                     singleLine = true,
-                    modifier = Modifier.fillMaxWidth(),
-                )
-                OutlinedTextField(
-                    value = fingerprint,
-                    onValueChange = { fingerprint = it },
-                    label = { Text("CERT_SHA256 (اثر انگشت گواهی — ۶۴ کاراکتر hex)") },
-                    singleLine = true,
-                    isError = fingerprint.isNotBlank() && !fpOk,
-                    supportingText = {
-                        if (fingerprint.isNotBlank() && !fpOk) Text("اثر انگشت باید ۶۴ کاراکتر hex باشد")
-                    },
                     modifier = Modifier.fillMaxWidth(),
                 )
                 OutlinedTextField(
@@ -220,14 +217,17 @@ private fun AddServerDialog(onDismiss: () -> Unit, onSaved: () -> Unit) {
                 )
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     TextButton(
-                        enabled = url.isNotBlank() && fpOk && adminToken.isNotBlank() && !testing,
+                        enabled = url.isNotBlank() && adminToken.isNotBlank() && !testing,
                         onClick = {
                             testing = true
                             testState = null
                             scope.launch {
                                 testState = try {
                                     val u = AccessAgentApi.normalizeUrl(url)
-                                    val api = AccessAgentApi(u, fingerprint, adminToken)
+                                    // TOFU: اولین اتصال، خودش اثرانگشت گواهی را می‌گیرد
+                                    val fp = withContext(Dispatchers.IO) { PinnedTrust.fetchFingerprint(u) }
+                                    fetchedFp = PinnedTrust.normalizeFingerprint(fp)
+                                    val api = AccessAgentApi(u, fp, adminToken)
                                     val st = withContext(Dispatchers.IO) { api.status() }
                                     true to "اتصال موفق — میزبان: ${st.hostname}، پل: v${st.version}"
                                 } catch (e: Exception) {
@@ -246,6 +246,26 @@ private fun AddServerDialog(onDismiss: () -> Unit, onSaved: () -> Unit) {
                         style = MaterialTheme.typography.bodySmall,
                     )
                 }
+                fetchedFp?.let { fp ->
+                    Column {
+                        Text(
+                            "گواهی سرور دریافت و ثبت شد (اعتماد در اولین اتصال، مثل SSH):",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        Text(
+                            fp,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.primary,
+                            fontFamily = FontFamily.Monospace,
+                        )
+                        Text(
+                            "از این پس هر تغییر گواهی سرور، اتصال متوقف می‌شود؛ اگر روزی گواهی را عوض کردید، سرور را حذف و دوباره اضافه کنید.",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
                 Text(
                     "توکن ادمین فقط در حافظهٔ رمزنگاری‌شدهٔ خود گوشی (Android Keystore) ذخیره می‌شود و هرگز جایی ارسال/نمایش نمی‌شود.",
                     style = MaterialTheme.typography.labelSmall,
@@ -258,18 +278,22 @@ private fun AddServerDialog(onDismiss: () -> Unit, onSaved: () -> Unit) {
         },
         confirmButton = {
             TextButton(
-                enabled = canSave,
+                enabled = canSave && !testing,
                 onClick = {
                     scope.launch {
                         try {
                             val u = AccessAgentApi.normalizeUrl(url)
-                            val fp = PinnedTrust.normalizeFingerprint(fingerprint)
+                            // اگر ادمین بدون تست ذخیره کند، خودِ ذخیره اثرانگشت را می‌گیرد
+                            val fp = withContext(Dispatchers.IO) {
+                                fetchedFp ?: PinnedTrust.fetchFingerprint(u)
+                            }
+                            fetchedFp = PinnedTrust.normalizeFingerprint(fp)
                             val id = withContext(Dispatchers.IO) {
                                 Db.get().serverDao().insert(
                                     ServerProfileEntity(
                                         name = name.trim(),
                                         url = u,
-                                        certSha256 = fp,
+                                        certSha256 = PinnedTrust.normalizeFingerprint(fp),
                                         createdAtMs = System.currentTimeMillis(),
                                     )
                                 )

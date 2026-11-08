@@ -9,6 +9,7 @@ import javax.net.ssl.SSLContext
 import javax.net.ssl.TrustManager
 import javax.net.ssl.X509TrustManager
 import okhttp3.OkHttpClient
+import okhttp3.Request
 
 /**
  * پین گواهی خودامضا — قرارداد access-agent (AGENT_PROTOCOL.fa.md §۲):
@@ -67,5 +68,41 @@ object PinnedTrust {
             .writeTimeout(15, TimeUnit.SECONDS)
             .retryOnConnectionFailure(true)
             .build()
+    }
+
+    /**
+     * واکشی خودکار اثرانگشت — مدل SSH/TOFU (دستور مالک: «باید خودش بسازد،
+     * از ادمین نخواهد»): اولین اتصال، گواهی برگ سرور را می‌گیرد و SHA-256 آن
+     * را برمی‌گرداند. ادمین هیچ چیزی تایپ نمی‌کند؛ همین مقدار یک بار به‌عنوان
+     * پین ثبت می‌شود و از آن پس هر تغییر گواهی، اتصال را رد می‌کند
+     * (همان رفتار known_hosts در SSH).
+     */
+    fun fetchFingerprint(baseUrl: String): String {
+        var leaf: X509Certificate? = null
+        val trustManager = object : X509TrustManager {
+            override fun checkClientTrusted(chain: Array<X509Certificate>, authType: String) {}
+
+            override fun checkServerTrusted(chain: Array<X509Certificate>, authType: String) {
+                leaf = chain.firstOrNull()
+                    ?: throw javax.net.ssl.SSLPeerUnverifiedException("زنجیرهٔ گواهی خالی بود")
+            }
+
+            override fun getAcceptedIssuers(): Array<X509Certificate> = arrayOf()
+        }
+        val sslCtx = SSLContext.getInstance("TLS")
+        sslCtx.init(null, arrayOf<TrustManager>(trustManager), SecureRandom())
+        val client = OkHttpClient.Builder()
+            .sslSocketFactory(sslCtx.socketFactory, trustManager)
+            .hostnameVerifier { _, _ -> true }
+            .connectTimeout(10, TimeUnit.SECONDS)
+            .readTimeout(10, TimeUnit.SECONDS)
+            .build()
+        val url = baseUrl.trim().trimEnd('/') + "/healthz"
+        // هدف فقط تکمیل دست‌دادن TLS و گرفتن گواهی است؛ کد وضعیت HTTP مهم نیست
+        client.newCall(Request.Builder().url(url).get().build()).execute().use { resp ->
+            resp.body?.string()
+        }
+        val cert = leaf ?: throw IllegalStateException("گواهی سرور دریافت نشد")
+        return sha256Hex(cert.encoded)
     }
 }
