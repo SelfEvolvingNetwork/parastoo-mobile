@@ -3,9 +3,9 @@ package network.selfevolving.parastoo.mobile.core.security
 import android.util.Log
 import net.schmizz.sshj.common.SecurityUtils
 import org.bouncycastle.jce.provider.BouncyCastleProvider
-import java.security.KeyAgreement
 import java.security.Provider
 import java.security.Security
+import javax.crypto.KeyAgreement
 
 /**
  * رفع باگ «no such algorithm: X25519 for provider BC» (مشاهدهٔ میدانی r10، 2026-11-08):

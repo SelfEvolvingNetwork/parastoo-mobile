@@ -4,7 +4,6 @@ import android.content.Context
 import net.schmizz.sshj.SSHClient
 import net.schmizz.sshj.transport.verification.HostKeyVerifier
 import net.schmizz.sshj.xfer.FileSystemFile
-import net.schmizz.sshj.common.Factory
 import network.selfevolving.parastoo.mobile.core.model.HostStatus
 import network.selfevolving.parastoo.mobile.core.net.AccessAgentApi
 import network.selfevolving.parastoo.mobile.core.security.CryptoFix
@@ -125,18 +124,18 @@ class ServerProvisioner {
             appendLine("exit \${RC:-0}")
         }
 
-        val ssh = SSHClient()
+        // کانفیگ پیش‌فرض sshj؛ SSHClient کانفیگ را با getter بیرون نمی‌دهد — از سازنده پاس می‌دهیم
+        val cfg = net.schmizz.sshj.DefaultConfig()
+        // فالبک ضدتوقف: اگر به هر دلیلی X25519 در این دستگاه نبود، curve25519 از
+        // فهرست تبادل کلید حذف می‌شود تا نصب با ecdh-sha2-nistp256 پیش برود.
+        if (!CryptoFix.x25519Available()) {
+            val withoutCurve = cfg.keyExchangeFactories
+                .filterNot { it.name.startsWith("curve25519") }
+            cfg.setKeyExchangeFactories(withoutCurve)
+            onLog("هشدار: X25519 در این دستگاه نیست — تبادل کلید با ECDH انجام می‌شود")
+        }
+        val ssh = SSHClient(cfg)
         try {
-            // فالبک ضدتوقف: اگر به هر دلیلی X25519 در این دستگاه نبود، curve25519 از
-            // فهرست تبادل کلید حذف می‌شود تا نصب با ecdh-sha2-nistp256 پیش برود.
-            if (!CryptoFix.x25519Available()) {
-                ssh.config.keyExchangeFactories = ssh.config.keyExchangeFactories
-                    .filterNot { f: Factory.Named<net.schmizz.sshj.transport.kex.KeyExchange> ->
-                        f.name.startsWith("curve25519")
-                    }
-                onLog("هشدار: X25519 در این دستگاه نیست — تبادل کلید با ECDH انجام می‌شود")
-            }
-
             // ---------- ۲) اتصال SSH — TOFU کلید میزبان ----------
             onPhase("اتصال SSH به $host:$sshPort")
             ssh.setConnectTimeout(20_000)
