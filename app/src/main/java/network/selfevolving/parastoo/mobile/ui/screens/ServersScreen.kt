@@ -23,6 +23,7 @@ import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.rounded.Dns
 import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.Security
+import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material.icons.rounded.VpnKey
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
@@ -74,7 +75,11 @@ import network.selfevolving.parastoo.mobile.ui.components.InfoBanner
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ServersScreen(onOpen: (Long) -> Unit, onAddProvision: () -> Unit = {}) {
+fun ServersScreen(
+    onOpen: (Long) -> Unit,
+    onAddProvision: () -> Unit = {},
+    onOpenSettings: () -> Unit = {},
+) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val servers by Db.get().serverDao().observeAll().collectAsState(initial = emptyList())
@@ -107,6 +112,13 @@ fun ServersScreen(onOpen: (Long) -> Unit, onAddProvision: () -> Unit = {}) {
                 actions = {
                     TextButton(onClick = { showAdd = true }) {
                         Text("افزودن دستی", style = MaterialTheme.typography.labelMedium)
+                    }
+                    IconButton(onClick = onOpenSettings) {
+                        Icon(
+                            Icons.Rounded.Settings,
+                            contentDescription = "تنظیمات اپ",
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(

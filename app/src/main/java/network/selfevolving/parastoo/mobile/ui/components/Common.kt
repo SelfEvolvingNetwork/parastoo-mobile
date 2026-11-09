@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -114,7 +115,12 @@ fun SwallowBadge(modifier: Modifier = Modifier, size: Dp = 104.dp) {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun BackTopBar(title: String, subtitle: String? = null, onBack: () -> Unit) {
+fun BackTopBar(
+    title: String,
+    subtitle: String? = null,
+    onBack: () -> Unit,
+    actions: @Composable RowScope.() -> Unit = {},
+) {
     TopAppBar(
         title = {
             Column {
@@ -141,6 +147,7 @@ fun BackTopBar(title: String, subtitle: String? = null, onBack: () -> Unit) {
                 Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "بازگشت")
             }
         },
+        actions = actions,
         colors = TopAppBarDefaults.topAppBarColors(
             containerColor = MaterialTheme.colorScheme.background,
         ),
