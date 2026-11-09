@@ -80,7 +80,17 @@ class MainActivity : AppCompatActivity() {
                             }
                             if (unlocked) {
                                 sessionUnlocked = true
+                                // گارد سلامت رندر (درس rev31): اگر پروسه پیش از
+                                // اولین فریم موفقِ هسته مُرد (مثل کلاس گمشده در
+                                // Compose)، بووتِ بعدی این را شکست می‌بُرد تا
+                                // کرش‌لوپ هم به فالبک خودکار برسد
+                                AppCoreLoader.markBootPending(
+                                    applicationContext, st.revision, st.sourceTag,
+                                )
                                 st.entry.App()
+                                LaunchedEffect(st.revision) {
+                                    AppCoreLoader.markRenderOk(applicationContext, st.revision)
+                                }
                             } else {
                                 LockScreen(
                                     hasGate = hasGate,

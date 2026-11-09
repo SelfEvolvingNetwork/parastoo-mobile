@@ -15,8 +15,8 @@ android {
         // معماری «بدنه ثابت + هسته» (فرمان مالک 2026-11-09): این APK فقط بدنه
         // است (لودر هسته + امنیت + فونت/تم) و به‌ندرت آپدیت می‌شود؛ همهٔ رابط
         // و منطق در :coreimpl است که بی‌نصب از کانال انتشار تازه می‌شود.
-        versionCode = 19
-        versionName = "0.5.0"
+        versionCode = 20
+        versionName = "0.5.1"
     }
 
     // امضای پایدار CI: همهٔ بیلدها با یک کلید (Secrets گیت‌هاب) تا هر نسخه
@@ -83,7 +83,13 @@ dependencies {
     implementation("androidx.appcompat:appcompat:1.7.0")
     // قفل گوشی (بیومتریک/PIN) برای ورود — قرارداد مالک: ورودهای بعدی فقط با قفل دستگاه
     implementation("androidx.biometric:biometric:1.1.0")
-    // بقیهٔ کتابخانه‌ها (okhttp/sshj/BC/room) از :foundation می‌آیند —
+    // قاعدهٔ معماری (درس rev31): بدنه باید «همهٔ» کلاس‌هایی را در dex خود داشته
+    // باشد که dex هسته ارجاع می‌دهد (والد-اول: هسته از بدنه مصرف می‌کند).
+    // navigation-compose و sshj در :coreimpl هم هستند — نسخه‌ها باید یکی بمانند.
+    // گیت CI: scripts/dex_forensics.py --gate بعد از هر بیلد این را می‌سنجد.
+    implementation("androidx.navigation:navigation-compose:2.8.2")
+    implementation("com.hierynomus:sshj:0.38.0")
+    // بقیهٔ کتابخانه‌ها (okhttp/BC/room/security-crypto) از :foundation می‌آیند —
     // هستهٔ خارجی هم در runtime از همین کلاس‌لودر والد مصرفشان می‌کند.
 
     debugImplementation("androidx.compose.ui:ui-tooling")

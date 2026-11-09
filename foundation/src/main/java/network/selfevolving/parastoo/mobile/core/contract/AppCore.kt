@@ -49,11 +49,25 @@ object AppCorePrefs {
     /** versionName هستهٔ فعال */
     const val KEY_ACTIVE_VERSION_NAME = "active_version_name"
 
-    /** شمارش بوت ناموفق هر revision — دو شکست پیاپی = کنار گذاشتن و فالبک */
-    fun failKey(revision: Int) = "fail_count_$revision"
+    /** شمارش بوت ناموفق هر (revision، منبع) — دو شکست پیاپی = کنار گذاشتن و فالبک.
+     *  درس rev31: شمارش باید به تفکیک منبع باشد — وگرنه شکستِ نسخهٔ OTA،
+     *  همان نسخهٔ سالمِ باندل داخل APK را هم همیشه مسموم می‌کند و بدنه
+     *  هرگز نمی‌تواند به فالبک برگردد. */
+    fun failKey(revision: Int, source: String) = "fail_count_${source}_$revision"
 
     /** سقف شکست پیاپی پیش از کنار گذاشتن یک هسته */
     const val MAX_FAILS = 2
+
+    /** آخرین خطای واقعی لود (rev + پیام استثنا) — پیام صادقانهٔ صفحهٔ بدنه */
+    const val KEY_LAST_FAIL_REV = "last_fail_rev"
+    const val KEY_LAST_FAIL_MSG = "last_fail_msg"
+
+    /** نشانگر سلامت رندر بووتِ جاری — درس rev31: مرگِ پروسه در اولین رندر
+     *  هسته (مثلاً NoClassDefFoundError در Compose) نباید بی‌شمارش بماند؛
+     *  بووتِ بعدی آن را به شمارش شکست همان (rev، منبع) می‌بُرد. */
+    const val KEY_BOOT_PENDING_REV = "boot_pending_rev"
+    const val KEY_BOOT_PENDING_SOURCE = "boot_pending_source"
+    const val KEY_BOOT_PENDING_OK = "boot_pending_ok"
 }
 
 /**

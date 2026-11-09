@@ -64,6 +64,12 @@ jobs:
       - name: Build debug APK (body)
         run: gradle :app:assembleDebug --no-daemon
 
+      # ۴) گیت کامل‌بودن بدنه (درس rev31 — فاجعهٔ گوشی مالک): هر مرجع کلاسِ
+      #    dex هسته باید در dexهای APK بدنه تعریف شده باشد؛ وگرنه هسته روی
+      #    گوشی لود/رندر نمی‌شود و rollback هم چیزی برای فالبک ندارد
+      - name: Preflight core-to-body dex completeness
+        run: python3 scripts/dex_forensics.py core/build/pack-work/classes.dex app/build/outputs/apk/debug/app-debug.apk --gate
+
       - name: Upload artifacts (APK + core bundle)
         uses: actions/upload-artifact@v4
         with:

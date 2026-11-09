@@ -41,7 +41,14 @@ import org.json.JSONObject
  *  - sha256 خودِ classes.dex با مانیفست بسته می‌سنجد (لایهٔ اول؛ لایهٔ دوم —
  *    هش کل zip — پیش از نصب در آپدیتر هسته سنجیده شده است)
  *  - گارد سازگاری: min_body_version_code ≤ versionCode بدنه
- *  - گارد سلامت: دو بوت پیاپی ناموفق = کنار گذاشتن (AppCorePrefs.MAX_FAILS)
+ *  - گارد سلامت: دو بوت پیاپی ناموفق به تفکیک (revision، منبع) = کنار گذاشتن
+ *    (AppCorePrefs.MAX_FAILS) — درس rev31: شمارش مشترکِ OTA/باندل، فالبکِ
+ *    سالم را هم مسموم می‌کرد؛ شمارش مشترک حذف شد
+ *  - گارد سلامتِ رندر (درس rev31): اگر پروسه در بووت قبلی پیش از اولین فریم
+ *    موفقِ هسته مُرده بود (مثل NoClassDefFoundError در Compose)، بووتِ جدید
+ *    آن را یک شکست می‌بُرد — کرش‌لوپ هم به فالبک می‌رسد
+ *  - خطای واقعی هر شکست در prefs می‌ماند (KEY_LAST_FAIL_*) تا صفحهٔ صادقانهٔ
+ *    بدنه فقط پیام مبهم «کنار گذاشته شد» نگوید، علت را هم بگوید
  *  - DexClassLoader با parent-first (والد = کلاس‌لودر بدنه)؛ هسته به بنیاد،
  *    کتابخانه‌ها و ریسورس‌های بدنه می‌رسد و هیچ چیز دوباره بارد نمی‌شود
  *
@@ -53,7 +60,12 @@ object AppCoreLoader {
 
     sealed class Result {
         /** هسته آماده — بدنه فقط App() را در تم خودش صدا می‌زند */
-        data class Loaded(val entry: AppCoreEntry, val revision: Int, val source: String) : Result()
+        data class Loaded(
+            val entry: AppCoreEntry,
+            val revision: Int,
+            val source: String,
+            val sourceTag: String, // "ota" یا "bundle" — برای گارد سلامت رندر
+        ) : Result()
 
         /** هیچ هسته‌ای سالم لود نشد — صفحهٔ صادقانهٔ بدنه */
         data class Failed(val reason: String) : Result()
@@ -62,13 +74,66 @@ object AppCoreLoader {
     /** نسخهٔ بدنه — حقیقت نصب‌شده، بدون BuildConfig */
     fun bodyVersionCode(context: Context): Long = AppCoreIo.bodyVersionCode(context)
 
+    /**
+     * نشانگر «این هسته در حال رندر است» — MainActivity پیش از اولین
+     * فریم هسته صدا می‌زند؛ اگر پروسه پیش از markRenderOk مُرد، بووتِ بعدی
+     * این را یک شکست واقعی می‌بُرد (درس rev31: کرشِ رندر نباید بی‌شمارش بماند).
+     */
+    fun markBootPending(context: Context, revision: Int, sourceTag: String) {
+        context.getSharedPreferences(AppCorePrefs.FILE, Context.MODE_PRIVATE).edit()
+            .putInt(AppCorePrefs.KEY_BOOT_PENDING_REV, revision)
+            .putString(AppCorePrefs.KEY_BOOT_PENDING_SOURCE, sourceTag)
+            .putBoolean(AppCorePrefs.KEY_BOOT_PENDING_OK, false)
+            .apply()
+    }
+
+    /** اولین فریم هسته سومان گرفت — نشانگر pending را سبز می‌کند */
+    fun markRenderOk(context: Context, revision: Int) {
+        context.getSharedPreferences(AppCorePrefs.FILE, Context.MODE_PRIVATE).edit()
+            .putInt(AppCorePrefs.KEY_BOOT_PENDING_REV, revision)
+            .putBoolean(AppCorePrefs.KEY_BOOT_PENDING_OK, true)
+            .apply()
+    }
+
+    /**
+     * رسیدگی به بووت قبلی: اگر پروسه پیش از اولین فریم موفق مُرده بود،
+     * شکستِ همان (rev، منبع) ثبت می‌شود و نشانگر پاک می‌شود.
+     */
+    private fun settlePendingBoot(prefs: android.content.SharedPreferences) {
+        val pendingRev = prefs.getInt(AppCorePrefs.KEY_BOOT_PENDING_REV, 0)
+        if (pendingRev <= 0) return
+        val ok = prefs.getBoolean(AppCorePrefs.KEY_BOOT_PENDING_OK, false)
+        if (!ok) {
+            val tag = prefs.getString(AppCorePrefs.KEY_BOOT_PENDING_SOURCE, null)
+            val keys = if (tag == "ota" || tag == "bundle") {
+                listOf(tag)
+            } else {
+                listOf("ota", "bundle") // نشانگر قدیمی/ناشناخته — محافظه‌کار
+            }
+            val edit = prefs.edit()
+            for (t in keys) {
+                val key = AppCorePrefs.failKey(pendingRev, t)
+                edit.putInt(key, prefs.getInt(key, 0) + 1)
+            }
+            edit.putInt(AppCorePrefs.KEY_LAST_FAIL_REV, pendingRev)
+                .putString(
+                    AppCorePrefs.KEY_LAST_FAIL_MSG,
+                    "پروسه در رندر rev$pendingRev مُرد (بووت قبلی بدون اولین فریم موفق)",
+                )
+                .apply()
+            Log.w(TAG, "بووت قبلی پیش از اولین فریم موفق مُرد — rev$pendingRev یک شکست ثبت شد")
+        }
+        prefs.edit().putInt(AppCorePrefs.KEY_BOOT_PENDING_REV, 0).apply()
+    }
+
     /** لود — روی IO صدا زده شود (دیسک + بازکردن کلاس‌ها) */
     fun load(context: Context): Result {
         val appContext = context.applicationContext
         val bodyCode = AppCoreIo.bodyVersionCode(appContext)
         val prefs = appContext.getSharedPreferences(AppCorePrefs.FILE, Context.MODE_PRIVATE)
+        settlePendingBoot(prefs)
 
-        data class Candidate(val dir: File, val manifest: AppCoreManifest, val source: String)
+        data class Candidate(val dir: File, val manifest: AppCoreManifest, val source: String, val tag: String)
 
         val candidates = mutableListOf<Candidate>()
         // ۱) هسته‌های OTA — پوشه‌های عددیِ filesDir/core/versions
@@ -77,13 +142,13 @@ object AppCoreLoader {
             versions.listFiles { f -> f.isDirectory && f.name.toIntOrNull() != null }
                 ?.sortedByDescending { it.name.toInt() }
                 ?.forEach { dir ->
-                    parseManifestIn(dir)?.let { candidates.add(Candidate(dir, it, "کانال انتشار")) }
+                    parseManifestIn(dir)?.let { candidates.add(Candidate(dir, it, "کانال انتشار", "ota")) }
                 }
         }
         // ۲) باندل APK — asset به کش کپی می‌شود (DexClassLoader مسیر واقعی می‌خواهد)
         runCatching {
             bundledDir(appContext)?.let { dir ->
-                parseManifestIn(dir)?.let { candidates.add(Candidate(dir, it, "باندل APK")) }
+                parseManifestIn(dir)?.let { candidates.add(Candidate(dir, it, "باندل APK", "bundle")) }
             }
         }
 
@@ -92,9 +157,11 @@ object AppCoreLoader {
 
         for (c in candidates) {
             val m = c.manifest
-            val fails = prefs.getInt(AppCorePrefs.failKey(m.revision), 0)
+            val fails = prefs.getInt(AppCorePrefs.failKey(m.revision, c.tag), 0)
             if (fails >= AppCorePrefs.MAX_FAILS) {
-                bestReason = "هستهٔ rev${m.revision} ${AppCorePrefs.MAX_FAILS} بار پیاپی شکست خورد — کنار گذاشته شد"
+                val lastMsg = prefs.getString(AppCorePrefs.KEY_LAST_FAIL_MSG, "") ?: ""
+                bestReason = "هستهٔ rev${m.revision} ${AppCorePrefs.MAX_FAILS} بار پیاپی شکست خورد — کنار گذاشته شد" +
+                    (if (lastMsg.isNotBlank()) "؛ آخرین خطا: $lastMsg" else "")
                 Log.w(TAG, bestReason)
                 continue
             }
@@ -121,12 +188,19 @@ object AppCoreLoader {
                     .putInt(AppCorePrefs.KEY_ACTIVE_REVISION, m.revision)
                     .putString(AppCorePrefs.KEY_ACTIVE_SOURCE, c.source)
                     .putString(AppCorePrefs.KEY_ACTIVE_VERSION_NAME, m.versionName)
-                    .putInt(AppCorePrefs.failKey(m.revision), 0)
+                    .putInt(AppCorePrefs.failKey(m.revision, c.tag), 0)
                     .apply()
                 Log.i(TAG, "هسته لود شد: rev${m.revision} از «${c.source}»")
-                return Result.Loaded(entry, m.revision, c.source)
+                return Result.Loaded(entry, m.revision, c.source, c.tag)
             } catch (t: Throwable) {
-                prefs.edit().putInt(AppCorePrefs.failKey(m.revision), fails + 1).apply()
+                prefs.edit()
+                    .putInt(AppCorePrefs.failKey(m.revision, c.tag), fails + 1)
+                    .putInt(AppCorePrefs.KEY_LAST_FAIL_REV, m.revision)
+                    .putString(
+                        AppCorePrefs.KEY_LAST_FAIL_MSG,
+                        "${c.source}: ${t.javaClass.name}: ${t.message ?: "بدون پیام"}".take(240),
+                    )
+                    .apply()
                 bestReason = "rev${m.revision} (${c.source}): ${t.message ?: t.javaClass.simpleName}"
                 Log.w(TAG, "لود هسته شکست خورد — $bestReason")
             }
