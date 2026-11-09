@@ -20,7 +20,8 @@ import java.security.SecureRandom
  * (آجنت دسترسی) را نصب می‌کند و از آن پس همه‌چیز از داخل اپ است.»
  *
  * توالی:
- *  ۱) صحت بستهٔ نصب داخل APK (SHA-256 ثبت‌شده کنار بسته)
+ *  ۱) بستهٔ پل: اول کانال انتشار گیت‌هاب (§۸ قرارداد پل) با صحت دو-کاناله؛
+ *     در نبودِ شبکه، باندل جاسازی‌شدهٔ APK (ممکن است کهنه‌تر باشد) فقط برای سرور نو
  *  ۲) اتصال SSH با رمز — TOFU کلید میزبان (اولین اتصال ثبت می‌شود)
  *  ۳) بالا بردن بسته + فایل env (توکن‌های ساخته‌شده روی همین گوشی) با SFTP
  *  ۴) اجرای install.sh آجنت — نصب/ارتقای idempotent؛ توکن‌ها هرگز در خروجی چاپ نمی‌شوند
@@ -44,6 +45,25 @@ class ServerProvisioner {
         val hostname: String,
         val agentVersion: String,
     )
+
+    /** باندل جاسازی‌شدهٔ APK — فقط فالبک آفلاین برای سرور نو؛ صحتش با sha256 داخل APK */
+    private fun embeddedRelease(context: Context): BridgeReleaseClient.BridgeRelease {
+        // پسوند خنثی (.bin): AAPT پسوند gz را از اسم asset حذف می‌کند — r8 آموختیم
+        val bytes = context.assets.open("provision/access-agent-bundle.bin").use { it.readBytes() }
+        val expectedSha = context.assets.open("provision/access-agent-bundle.sha256")
+            .bufferedReader().readLine().trim().split(Regex("\\s+")).first()
+        val actualSha = sha256Hex(bytes)
+        if (!expectedSha.equals(actualSha, ignoreCase = true)) {
+            throw IllegalStateException("بستهٔ جاسازی‌شده ناقص/دستکاری‌شده است (SHA-256 نمی‌خواند)")
+        }
+        return BridgeReleaseClient.BridgeRelease(
+            version = "bundled",
+            filename = "access-agent-bundle.bin",
+            sha256 = actualSha,
+            bytes = bytes,
+            source = "باندل جاسازی‌شدهٔ اپ (آفلاین)",
+        )
+    }
 
     private fun sha256Hex(bytes: ByteArray): String =
         MessageDigest.getInstance("SHA-256").digest(bytes)
@@ -76,17 +96,16 @@ class ServerProvisioner {
         // تضمین BC کامل پیش از هر کار sshj (رفع «no such algorithm: X25519»)
         CryptoFix.ensure()
 
-        // ---------- ۱) بستهٔ نصب داخل APK ----------
-        onPhase("بررسی بستهٔ نصب داخل اپ")
-        // پسوند خنثی (.bin): AAPT پسوند gz را از اسم asset حذف می‌کند — r8 آموختیم
-        val bundleBytes = context.assets.open("provision/access-agent-bundle.bin").use { it.readBytes() }
-        val expectedSha = context.assets.open("provision/access-agent-bundle.sha256")
-            .bufferedReader().readLine().trim().split(Regex("\\s+")).first()
-        val actualSha = sha256Hex(bundleBytes)
-        if (!expectedSha.equals(actualSha, ignoreCase = true)) {
-            throw IllegalStateException("بستهٔ نصب ناقص/دستکاری‌شده است (SHA-256 نمی‌خواند)")
+        // ---------- ۱) بستهٔ پل: کانال انتشار گیت‌هاب، فالبک باندل اپ (سرور نو) ----------
+        onPhase("گرفتن آخرین بستهٔ پل از گیت‌هاب")
+        val release = try {
+            BridgeReleaseClient.fetchLatest(onLog)
+        } catch (e: Exception) {
+            onLog("کانال گیت‌هاب باز نشد (${e.message}) — باندل جاسازی‌شدهٔ اپ استفاده می‌شود (ممکن است کهنه‌تر باشد؛ فقط برای سرور نو)")
+            embeddedRelease(context)
         }
-        onLog("بستهٔ نصب سالم است — ${bundleBytes.size} بایت")
+        val bundleBytes = release.bytes
+        onLog("بستهٔ پل v${release.version} آماده است — ${bundleBytes.size} بایت (${release.source})")
 
         val adminToken = newToken("adm_")
         val agentToken = newToken("aa_")
