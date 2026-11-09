@@ -2,9 +2,9 @@ package network.selfevolving.parastoo.mobile.core.security
 
 import android.util.Log
 import org.bouncycastle.jce.provider.BouncyCastleProvider
-import java.security.KeyAgreement
 import java.security.Provider
 import java.security.Security
+import javax.crypto.KeyAgreement
 
 /**
  * ترمیم زنجیرهٔ JCE — فقط بخش BouncyCastle، بدون وابستگی به sshj.
