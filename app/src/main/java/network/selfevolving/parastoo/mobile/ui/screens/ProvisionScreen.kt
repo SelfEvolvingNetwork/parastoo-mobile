@@ -210,6 +210,14 @@ fun ProvisionScreen(onDone: () -> Unit) {
                                         withContext(Dispatchers.IO) {
                                             SecretVault.saveAdminToken(context, id, res.adminToken)
                                             SecretVault.saveAgentToken(context, id, res.agentToken)
+                                            // فرمان مالک (2026-11-09): رمز یک بار گرفته می‌شود و تمام —
+                                            // پس از نصب موفق در گاوصندوق قفل می‌شود تا به‌روزرسانی خودکار
+                                            // پل و کارهای بعدی هرگز دوباره نپرسند.
+                                            SecretVault.saveSshPassword(context, id, password)
+                                            SecretVault.saveSshPort(context, id, sshPort.trim().toIntOrNull() ?: 22)
+                                            if (res.sshHostKeyFp.isNotBlank()) {
+                                                SecretVault.saveSshHostKeyFp(context, id, res.sshHostKeyFp)
+                                            }
                                         }
                                         password = ""
                                         githubToken = ""
@@ -388,10 +396,16 @@ private fun FormView(
         OutlinedTextField(
             value = password,
             onValueChange = onPassword,
-            label = { Text("رمز سرور (root)") },
+            label = { Text("رمز سرور (root) — فقط همین یک بار") },
             singleLine = true,
             visualTransformation = if (showPassword) VisualTransformation.None else PasswordVisualTransformation(),
             leadingIcon = { Icon(Icons.Rounded.Lock, null, Modifier.size(18.dp)) },
+            supportingText = {
+                Text(
+                    "فرمان مالک (2026-11-09): رمز یک بار گرفته می‌شود و در گاوصندوق رمزنگاری‌شدهٔ همین گوشی (کلید سخت‌افزاری) قفل می‌شود — از این پس به‌روزرسانی پل و بقیهٔ کارها بدون هیچ پرسشی انجام می‌شوند.",
+                    style = MaterialTheme.typography.labelSmall,
+                )
+            },
             trailingIcon = {
                 IconButton(onClick = onTogglePassword) {
                     Icon(
@@ -466,7 +480,7 @@ private fun FormView(
         }
 
         Text(
-            "نکتهٔ امنیتی: رمز فقط داخل کانال رمزنگاری‌شدهٔ SSH برای نصب استفاده و بلافاصله فراموش می‌شود؛ توکن‌ها را خودِ گوشی می‌سازد و سرور فقط هش‌شان را نگه می‌دارد. اگر سرور قبلاً پل داشته باشد، مالکیت بی‌سروصدا به این گوشی منتقل و توکن‌های قبلی باطل می‌شوند.",
+            "نکتهٔ امنیتی: رمز سرور با AES-256 و کلید سخت‌افزاری همین گوشی قفل می‌شود و فقط برای نصب و به‌روزرسانی خودکار، داخل کانال رمزنگاری‌شدهٔ SSH مصرف می‌شود؛ توکن‌ها را خودِ گوشی می‌سازد و سرور فقط هش‌شان را نگه می‌دارد. اگر سرور قبلاً پل داشته باشد، مالکیت بی‌سروصدا به این گوشی منتقل و توکن‌های قبلی باطل می‌شوند.",
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )

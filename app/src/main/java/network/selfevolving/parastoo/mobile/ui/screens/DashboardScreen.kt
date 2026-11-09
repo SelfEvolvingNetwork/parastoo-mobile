@@ -25,7 +25,6 @@ import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.icons.rounded.Schedule
 import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material.icons.rounded.Storage
-import androidx.compose.material.icons.rounded.SystemUpdateAlt
 import androidx.compose.material.icons.rounded.VpnKey
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
@@ -77,7 +76,6 @@ fun DashboardScreen(
     var error by remember { mutableStateOf<String?>(null) }
     var loading by remember { mutableStateOf(true) }
     var pauseDialog by remember { mutableStateOf<Boolean?>(null) } // null بسته؛ true/false هدف
-    var bridgeUpdateOpen by remember { mutableStateOf(false) }
     var ghDialog by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
 
@@ -298,11 +296,11 @@ fun DashboardScreen(
                         subtitle = "نصب، حذف کامل، نصب مجدد و به‌روزرسانی — بدون ورود به سرور",
                         onClick = onLifecycle,
                     )
-                    ActionTile(
-                        icon = Icons.Rounded.SystemUpdateAlt,
-                        title = "به‌روزرسانی پل (v${st.version})",
-                        subtitle = "نصب آخرین نسخه از گیت‌هاب — توکن‌ها و گواهی حفظ می‌شوند",
-                        onClick = { bridgeUpdateOpen = true },
+                    // به‌روزرسانی خودکار پل — فرمان مالک (2026-11-09): بدون پرسش
+                    BridgeAutoUpdateCard(
+                        session = s,
+                        currentVersion = st.version,
+                        onRefresh = { refresh(s.api) },
                     )
 
                     Text(
@@ -336,18 +334,6 @@ fun DashboardScreen(
             },
             onDismiss = { pauseDialog = null },
         )
-    }
-
-    if (bridgeUpdateOpen) {
-        val sNow = session
-        val vNow = status?.version
-        if (sNow != null && !vNow.isNullOrEmpty()) {
-            BridgeUpdateDialog(
-                session = sNow,
-                currentVersion = vNow,
-                onDismiss = { bridgeUpdateOpen = false },
-            )
-        }
     }
 
     if (ghDialog) {

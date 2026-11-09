@@ -17,7 +17,10 @@ import java.io.InputStreamReader
  *  ۳) هیچ env توکنی بالا نمی‌رود و RESET_TOKENS هرگز ست نمی‌شود — مسیر ارتقای
  *     install.sh همهٔ رازها (توکن‌ها/گواهی/PAT/audit) را نگه می‌دارد.
  *  ۴) گواهی TLS نباید عوض شود؛ تغییرش یعنی رد آپدیت (هشدار واسطهٔ مخرب).
- *  ۵) رمز root فقط در همین فراخوانی استفاده و هیچ‌گاه ذخیره نمی‌شود.
+ *  ۴‌ـ۲) کلید میزبان SSH: اگر پین از قبل ثبت باشد باید دقیقاً بخواند؛ در اولین
+ *     اتصال (پین خالی) TOFU ثبت می‌شود تا به‌روزرسانی خودکارِ بی‌سروصدا هم امن بماند.
+ *  ۵) رمز root از گاوصندوق اپ می‌آید (فرمان مالک 2026-11-09: «رمز یک بار گرفته
+ *     می‌شود») و فقط در همین فراخوانی مصرف می‌شود؛ در این کلاس هیچ‌گاه نوشته نمی‌شود.
  *
  * تفاوت عمدی با ServerProvisioner: اینجا باندلِ جاسازی‌شده فالبک مجاز نیست —
  * به‌روزرسانی با بستهٔ کهنه بی‌معناست؛ شکست کانال گیت‌هاب = رد با پیام صادقانه.
@@ -28,6 +31,7 @@ class BridgeUpdater {
         val version: String,
         val source: String,
         val certSha256: String,
+        val sshHostKeyFp: String = "", // برای TOFU اولین اتصال — فراخواننده در گاوصندوق می‌گذارد
     )
 
     fun update(
@@ -37,6 +41,7 @@ class BridgeUpdater {
         currentVersion: String,
         expectedCertSha256: String,
         cacheDir: File,
+        expectedHostKeyFp: String = "",
         onPhase: (String) -> Unit = {},
         onLog: (String) -> Unit = {},
     ): UpdateResult {
@@ -90,12 +95,23 @@ class BridgeUpdater {
             ssh.setConnectTimeout(20_000)
             ssh.setTimeout(180_000)
             var sshHostKeyFp = ""
+            val pin = expectedHostKeyFp.trim().lowercase()
             ssh.addHostKeyVerifier(object : HostKeyVerifier {
                 override fun verify(hostname: String?, port: Int, key: java.security.PublicKey?): Boolean {
-                    if (key != null) {
-                        sshHostKeyFp = BridgeReleaseClient.sha256Hex(key.encoded)
-                        onLog("کلید میزبان (${key.algorithm}) ثبت شد: ${sshHostKeyFp.take(16)}…")
+                    if (key == null) return false
+                    val fp = BridgeReleaseClient.sha256Hex(key.encoded)
+                    if (pin.isEmpty()) {
+                        // TOFU: اولین اتصال از این دستگاه به این سرور — ثبت و ادامه
+                        sshHostKeyFp = fp
+                        onLog("کلید میزبان (${key.algorithm}) TOFU ثبت شد: ${fp.take(16)}…")
+                        return true
                     }
+                    if (!fp.equals(pin, ignoreCase = true)) {
+                        onLog("کلید میزبان با پین ذخیره‌شده نمی‌خواند — اتصال رد شد")
+                        return false
+                    }
+                    sshHostKeyFp = fp
+                    onLog("کلید میزبان با پین مطابق است: ${fp.take(16)}…")
                     return true
                 }
 
@@ -149,7 +165,12 @@ class BridgeUpdater {
             onLog("گواهی TLS دست‌نخورده ماند: ${expected.take(16)}…")
 
             onPhase("انجام شد")
-            return UpdateResult(version = release.version, source = release.source, certSha256 = expected)
+            return UpdateResult(
+                version = release.version,
+                source = release.source,
+                certSha256 = expected,
+                sshHostKeyFp = sshHostKeyFp,
+            )
         } finally {
             runCatching { ssh.disconnect() }
             localBundle.delete()

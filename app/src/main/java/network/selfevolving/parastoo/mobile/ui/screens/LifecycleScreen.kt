@@ -51,9 +51,11 @@ import network.selfevolving.parastoo.mobile.ui.components.DetailRow
 import network.selfevolving.parastoo.mobile.ui.components.rememberSession
 
 /**
- * مدیریت پرستو از گوشی — دستور مالک (2026-11-08): نصب، حذف کامل، نصب مجدد و
- * به‌روزرسانی، بدون ورود به سرور. هر عملیات تخریبی فقط با تایپِ کلمهٔ تأیید
- * اجرا می‌شود؛ پیشرفت زنده از لاگ همان عملیات روی سرور می‌آید.
+ * مدیریت پرستو از گوشی — نصب، حذف کامل و نصب مجدد = فقط با فرمان صریح کاربر
+ * (هر عملیات تخریبی با تایپِ کلمهٔ تأیید). به‌روزرسانی = خودکار و بدون پرسش
+ * (فرمان مالک 2026-11-09: «بروزرسانی نباید پرسیده شود») — دکمهٔ «به‌روزرسانی فوری»
+ * هم بدون تأیید می‌چرخد؛ تایمر خودکار سرور هم پس از فرمان 2026-11-09 همیشه
+ * کانال گیت‌هاب را دنبال می‌کند. پیشرفت زنده از لاگ همان عملیات روی سرور می‌آید.
  */
 @Composable
 fun LifecycleScreen(serverId: Long, onBack: () -> Unit) {
@@ -179,13 +181,13 @@ fun LifecycleScreen(serverId: Long, onBack: () -> Unit) {
                         }
                     } else if (s.installed) {
                         Button(
-                            onClick = { pendingConfirm = "update" },
+                            onClick = { fire("update") },
                             modifier = Modifier.fillMaxWidth().height(52.dp),
                             shape = MaterialTheme.shapes.medium,
                         ) {
                             Icon(Icons.Rounded.Refresh, contentDescription = null, modifier = Modifier.size(18.dp))
                             Spacer(Modifier.width(8.dp))
-                            Text("به‌روزرسانی فوری")
+                            Text("به‌روزرسانی فوری — بدون پرسش")
                         }
                         OutlinedButton(
                             onClick = { pendingConfirm = "reinstall" },
@@ -240,17 +242,12 @@ fun LifecycleScreen(serverId: Long, onBack: () -> Unit) {
     }
 
     pendingConfirm?.let { kind ->
-        if (kind == "install" || kind == "update") {
+        if (kind == "install") {
             AlertDialog(
                 onDismissRequest = { pendingConfirm = null },
-                title = { Text(if (kind == "install") "نصب پرستو؟" else "به‌روزرسانی فوری؟") },
+                title = { Text("نصب پرستو؟") },
                 text = {
-                    Text(
-                        if (kind == "install")
-                            "نصب تازه روی این سرور انجام می‌شود؛ چند دقیقه زمان می‌برد."
-                        else
-                            "آپدیت‌کنندهٔ سرور همین حالا اجرا می‌شود؛ آخرین نسخهٔ منتشرشده جایگزین می‌شود.",
-                    )
+                    Text("نصب تازه روی این سرور انجام می‌شود؛ چند دقیقه زمان می‌برد.")
                 },
                 confirmButton = {
                     TextButton(onClick = { pendingConfirm = null; fire(kind) }) { Text("انجام بده") }
