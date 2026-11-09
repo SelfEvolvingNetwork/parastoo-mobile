@@ -1,5 +1,6 @@
 package network.selfevolving.parastoo.mobile.core.net
 
+import network.selfevolving.parastoo.mobile.core.config.CoreConfigStore
 import network.selfevolving.parastoo.mobile.core.model.AuditEvent
 import network.selfevolving.parastoo.mobile.core.security.PinnedTrust
 import okhttp3.OkHttpClient
@@ -27,6 +28,10 @@ class SseAuditStream(
         .readTimeout(0, TimeUnit.MILLISECONDS) // استریم زنده — بدون تایم‌اوت خواندن
         .build()
 
+    /** مسیر استریم از هستهٔ هات با فالبک کامپایل‌شده — مثل بقیهٔ endpointها */
+    private fun streamPath(): String =
+        CoreConfigStore.get().ep("audit_stream", "/api/admin/audit/stream")
+
     @Volatile
     private var running = false
 
@@ -47,8 +52,8 @@ class SseAuditStream(
         running = true
         Thread {
             var url =
-                if (cursor >= 0) "$root/api/admin/audit/stream?cursor=$cursor"
-                else "$root/api/admin/audit/stream?backfill=$backfill"
+                if (cursor >= 0) "$root${streamPath()}?cursor=$cursor"
+                else "$root${streamPath()}?backfill=$backfill"
             while (running) {
                 onConnected(false)
                 try {
@@ -82,7 +87,7 @@ class SseAuditStream(
                     if (!running) break // توقف عمدی — نرمال
                 }
                 if (!running) break
-                if (cursor >= 0) url = "$root/api/admin/audit/stream?cursor=$cursor"
+                if (cursor >= 0) url = "$root${streamPath()}?cursor=$cursor"
                 try {
                     Thread.sleep(2000) // backoff قبل از تلاش مجدد
                 } catch (e: InterruptedException) {

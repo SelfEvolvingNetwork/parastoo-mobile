@@ -60,6 +60,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import network.selfevolving.parastoo.mobile.core.config.CoreConfigStore
 import network.selfevolving.parastoo.mobile.core.model.HostStatus
 import network.selfevolving.parastoo.mobile.core.model.SetupTokenInfo
 import network.selfevolving.parastoo.mobile.ui.components.ActionTile
@@ -89,6 +90,13 @@ fun DashboardScreen(
     var setupErr by remember { mutableStateOf<String?>(null) }
     var setupLoading by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
+
+    // هستهٔ هات — واکشی بی‌سروصدا از همین پل (v0.4.12)؛ هر خطا = ادامه با
+    // نسخهٔ فعلی؛ فلگ/متن با تغییرش صفحه خودکار تازه می‌شود
+    LaunchedEffect(session?.profile?.id) {
+        val s = session ?: return@LaunchedEffect
+        CoreConfigStore.refresh { s.api.coreConfig() }
+    }
 
     /** توکن نصب سایت — هر بار تازه خوانده می‌شود؛ هیچ‌چیز روی گوشی نمی‌ماند */
     fun loadSetupToken(api: network.selfevolving.parastoo.mobile.core.net.AccessAgentApi) {
@@ -343,8 +351,12 @@ fun DashboardScreen(
                     AppAutoUpdateCard()
 
                     // منطقهٔ خطر — آخرین فرمان نقطهٔ صفر (فرمان مالک 2026-11-09:
-                    // «پرستو موبایل دستور پاک کردن پل را می‌دهد»)
-                    BridgeSelfDestructCard(session = s, onBack = onBack)
+                    // «پرستو موبایل دستور پاک کردن پل را می‌دهد»). فلگ هات فقط
+                    // می‌تواند سطح را کم کند: پنهان‌کردن بله، هرگز نمایشِ چیزی
+                    // کمترِ خطر نه.
+                    if (CoreConfigStore.get().flag("bridge_self_destruct_visible", true)) {
+                        BridgeSelfDestructCard(session = s, onBack = onBack)
+                    }
 
                     Text(
                         "وضعیت هر ۱۵ ثانیه خودکار تازه می‌شود.",
@@ -668,6 +680,9 @@ private fun BridgeSelfDestructCard(
     session: ServerSession,
     onBack: () -> Unit,
 ) {
+    // متن‌های هات (فقط allowlist توصیفی؛ عنوان/برچسب/کلمهٔ تأیید همیشه
+    // کامپایل‌شده می‌مانند — قرارداد §۵.۸ پروتکل پل)
+    val cfg = CoreConfigStore.get()
     var pendingConfirm by remember { mutableStateOf(false) }
     var scheduled by remember { mutableStateOf(false) }
     var busy by remember { mutableStateOf(false) }
@@ -693,7 +708,10 @@ private fun BridgeSelfDestructCard(
                     Text("حذف خود پل (آخرین فرمان)", style = MaterialTheme.typography.titleSmall)
                     Spacer(Modifier.height(2.dp))
                     Text(
-                        "پس از حذف کامل پرستو — پل هم خودش را پاک می‌کند و هیچ دسترسی راه‌دوری باقی نمی‌ماند",
+                        cfg.str(
+                            "bridge_uninstall_card_subtitle",
+                            "پس از حذف کامل پرستو — پل هم خودش را پاک می‌کند و هیچ دسترسی راه‌دوری باقی نمی‌ماند",
+                        ),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -718,9 +736,12 @@ private fun BridgeSelfDestructCard(
                     }
                     Spacer(Modifier.height(6.dp))
                     Text(
-                        "پل دارد خودش و همهٔ راز‌هایش را پاک می‌کند؛ از این لحظه پاسخ نگرفتن این سرور «عادی» است — " +
-                            "هیچ توکنی دیگر معتبر نیست و هیچ‌کس از راه دور وارد نمی‌شود. " +
-                            "برای برگشتن، از «افزودن سرور» با رمز root شروع کنید — مثل اولین روز.",
+                        cfg.str(
+                            "bridge_uninstall_scheduled_body",
+                            "پل دارد خودش و همهٔ راز‌هایش را پاک می‌کند؛ از این لحظه پاسخ نگرفتن این سرور «عادی» است — " +
+                                "هیچ توکنی دیگر معتبر نیست و هیچ‌کس از راه دور وارد نمی‌شود. " +
+                                "برای برگشتن، از «افزودن سرور» با رمز root شروع کنید — مثل اولین روز.",
+                        ),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -744,10 +765,13 @@ private fun BridgeSelfDestructCard(
     if (pendingConfirm && !scheduled) {
         BridgeTypedConfirmDialog(
             title = "حذف خود پل",
-            body = "این آخرین فرمان است و بازگشتی ندارد: پل کد، توکن‌های ادمین و عامل، گواهی، گاوصندوق گیت‌هاب و " +
-                "گزارش رویدادهای خودش را برای همیشه پاک می‌کند. بعد از آن هیچ‌کس — حتی این اپ — از راه دور وارد سرور " +
-                "نمی‌شود و اتصال وسط کار قطع می‌شود (این خودش نشانهٔ موفقیت است). تنها راه بازگشت: جریان «افزودن سرور" +
-                "» با رمز root. برای تأیید بنویسید: حذف پل",
+            body = cfg.str(
+                "bridge_uninstall_confirm_body",
+                "این آخرین فرمان است و بازگشتی ندارد: پل کد، توکن‌های ادمین و عامل، گواهی، گاوصندوق گیت‌هاب و " +
+                    "گزارش رویدادهای خودش را برای همیشه پاک می‌کند. بعد از آن هیچ‌کس — حتی این اپ — از راه دور وارد سرور " +
+                    "نمی‌شود و اتصال وسط کار قطع می‌شود (این خودش نشانهٔ موفقیت است). تنها راه بازگشت: جریان «افزودن سرور" +
+                    "» با رمز root. برای تأیید بنویسید: حذف پل",
+            ),
             word = "حذف پل",
             busy = busy,
             onConfirm = {
