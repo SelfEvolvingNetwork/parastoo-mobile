@@ -276,6 +276,37 @@ private fun AgentRealmCard(
     }
 }
 
+/** دیالوگ دلیل توقف/ادامهٔ عامل — منتقل‌شده از داشبورد پیشین، عیناً
+ *  (هات‌فیکس بیلد ران ۲۶: هنگام نقل کارت‌ها به تنظیمات سرور، تعریف این
+ *  دیالوغ در داشبورد کهنه جا ماند و «Unresolved reference» ساخت) */
+@Composable
+private fun PauseReasonDialog(
+    title: String,
+    body: String,
+    confirmText: String,
+    onConfirm: (String) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    var reason by remember { mutableStateOf("") }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(title) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(body, style = MaterialTheme.typography.bodySmall)
+                OutlinedTextField(
+                    value = reason,
+                    onValueChange = { reason = it },
+                    label = { Text("دلیل (اختیاری — به عامل نمایش داده می‌شود)") },
+                    singleLine = true,
+                )
+            }
+        },
+        confirmButton = { TextButton(onClick = { onConfirm(reason) }) { Text(confirmText) } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("انصراف") } },
+    )
+}
+
 /** کارت توکن گیت‌هاب — منتقل‌شده از داشبورد، عیناً */
 @Composable
 private fun GithubTokenCard(stored: Boolean?, onEdit: () -> Unit) {
