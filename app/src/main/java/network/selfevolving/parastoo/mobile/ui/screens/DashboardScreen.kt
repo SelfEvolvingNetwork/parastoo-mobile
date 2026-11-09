@@ -15,7 +15,9 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.Cloud
+import androidx.compose.material.icons.rounded.DeleteForever
 import androidx.compose.material.icons.rounded.Dns
 import androidx.compose.material.icons.rounded.ErrorOutline
 import androidx.compose.material.icons.rounded.Key
@@ -63,6 +65,7 @@ import network.selfevolving.parastoo.mobile.core.model.SetupTokenInfo
 import network.selfevolving.parastoo.mobile.ui.components.ActionTile
 import network.selfevolving.parastoo.mobile.ui.components.BackTopBar
 import network.selfevolving.parastoo.mobile.ui.components.EmptyState
+import network.selfevolving.parastoo.mobile.ui.components.ServerSession
 import network.selfevolving.parastoo.mobile.ui.components.StatCard
 import network.selfevolving.parastoo.mobile.ui.components.StatusDot
 import network.selfevolving.parastoo.mobile.ui.components.rememberSession
@@ -338,6 +341,10 @@ fun DashboardScreen(
                     )
                     // به‌روزرسانی خودکار خود اپ — حلقهٔ آخر آپدیت‌ها (فرمان مالک)
                     AppAutoUpdateCard()
+
+                    // منطقهٔ خطر — آخرین فرمان نقطهٔ صفر (فرمان مالک 2026-11-09:
+                    // «پرستو موبایل دستور پاک کردن پل را می‌دهد»)
+                    BridgeSelfDestructCard(session = s, onBack = onBack)
 
                     Text(
                         "وضعیت هر ۱۵ ثانیه خودکار تازه می‌شود.",
@@ -648,4 +655,158 @@ private fun formatUptime(s: Long): String {
         h > 0 -> "$h ساعت و $m دقیقه"
         else -> "$m دقیقه"
     }
+}
+
+/**
+ * کارت «حذف خود پل» — آخرین فرمان نقطهٔ صفر (پل v0.5.7). پل همهٔ چیزِ خودش را
+ * پاک می‌کند و بعد از آن هیچ دسترسی راه‌دوری برای هیچ‌کس باقی نمی‌ماند —
+ * نه اپ، نه عامل، نه پنل. تأیید دولایه: دیالوگ هشدار + تایپ عبارت.
+ * پاسخ‌نگرفتن پس از فرمان، «مسیر موفقیت» است — اپ خودش همین را می‌گوید.
+ */
+@Composable
+private fun BridgeSelfDestructCard(
+    session: ServerSession,
+    onBack: () -> Unit,
+) {
+    var pendingConfirm by remember { mutableStateOf(false) }
+    var scheduled by remember { mutableStateOf(false) }
+    var busy by remember { mutableStateOf(false) }
+    var err by remember { mutableStateOf<String?>(null) }
+    val scope = rememberCoroutineScope()
+
+    Card(
+        Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.35f),
+        ),
+    ) {
+        Column(Modifier.padding(horizontal = 14.dp, vertical = 12.dp).fillMaxWidth()) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    Icons.Rounded.DeleteForever,
+                    contentDescription = null,
+                    modifier = Modifier.size(20.dp),
+                    tint = MaterialTheme.colorScheme.error,
+                )
+                Spacer(Modifier.width(12.dp))
+                Column(Modifier.weight(1f)) {
+                    Text("حذف خود پل (آخرین فرمان)", style = MaterialTheme.typography.titleSmall)
+                    Spacer(Modifier.height(2.dp))
+                    Text(
+                        "پس از حذف کامل پرستو — پل هم خودش را پاک می‌کند و هیچ دسترسی راه‌دوری باقی نمی‌ماند",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+            when {
+                scheduled -> {
+                    Spacer(Modifier.height(8.dp))
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            Icons.Rounded.CheckCircle,
+                            contentDescription = null,
+                            modifier = Modifier.size(18.dp),
+                            tint = MaterialTheme.colorScheme.primary,
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        Text(
+                            "فرمان حذف پل صادر شد — نقطهٔ صفر مطلق",
+                            style = MaterialTheme.typography.titleSmall,
+                            color = MaterialTheme.colorScheme.primary,
+                        )
+                    }
+                    Spacer(Modifier.height(6.dp))
+                    Text(
+                        "پل دارد خودش و همهٔ راز‌هایش را پاک می‌کند؛ از این لحظه پاسخ نگرفتن این سرور «عادی» است — " +
+                            "هیچ توکنی دیگر معتبر نیست و هیچ‌کس از راه دور وارد نمی‌شود. " +
+                            "برای برگشتن، از «افزودن سرور» با رمز root شروع کنید — مثل اولین روز.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Spacer(Modifier.height(6.dp))
+                    TextButton(onClick = onBack) { Text("بازگشت به فهرست سرورها") }
+                }
+                else -> {
+                    Spacer(Modifier.height(4.dp))
+                    TextButton(onClick = { pendingConfirm = true }) {
+                        Text("حذف پل…", color = MaterialTheme.colorScheme.error)
+                    }
+                }
+            }
+            err?.let {
+                Spacer(Modifier.height(4.dp))
+                Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
+            }
+        }
+    }
+
+    if (pendingConfirm && !scheduled) {
+        BridgeTypedConfirmDialog(
+            title = "حذف خود پل",
+            body = "این آخرین فرمان است و بازگشتی ندارد: پل کد، توکن‌های ادمین و عامل، گواهی، گاوصندوق گیت‌هاب و " +
+                "گزارش رویدادهای خودش را برای همیشه پاک می‌کند. بعد از آن هیچ‌کس — حتی این اپ — از راه دور وارد سرور " +
+                "نمی‌شود و اتصال وسط کار قطع می‌شود (این خودش نشانهٔ موفقیت است). تنها راه بازگشت: جریان «افزودن سرور" +
+                "» با رمز root. برای تأیید بنویسید: حذف پل",
+            word = "حذف پل",
+            busy = busy,
+            onConfirm = {
+                val api = session.api
+                scope.launch {
+                    busy = true
+                    err = null
+                    try {
+                        withContext(Dispatchers.IO) { api.bridgeUninstall() }
+                        // 202 یعنی واحد گذرای systemd زمان‌بندی شد؛ از این‌جا به بعد
+                        // هر تلاش اتصال قرار است شکست بخورد — این موفقیت است.
+                        scheduled = true
+                    } catch (e: Exception) {
+                        err = "فرمان صادر نشد: ${e.message ?: e.javaClass.simpleName}"
+                    } finally {
+                        busy = false
+                    }
+                }
+            },
+            onDismiss = { if (!busy) pendingConfirm = false },
+        )
+    }
+}
+
+/** دیالوگ تأیید با تایپ عبارت — همان الگوی «حذف کامل پرستو» */
+@Composable
+private fun BridgeTypedConfirmDialog(
+    title: String,
+    body: String,
+    word: String,
+    busy: Boolean,
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    var typed by remember { mutableStateOf("") }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(title) },
+        text = {
+            Column {
+                Text(body, style = MaterialTheme.typography.bodySmall)
+                Spacer(Modifier.height(10.dp))
+                OutlinedTextField(
+                    value = typed,
+                    onValueChange = { typed = it },
+                    label = { Text("عبارت تأیید") },
+                    singleLine = true,
+                )
+            }
+        },
+        confirmButton = {
+            val ok = typed.trim() == word && !busy
+            TextButton(enabled = ok, onClick = onConfirm) {
+                Text(
+                    if (busy) "در حال صدور فرمان…" else "انجام بده",
+                    color = if (ok) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        },
+        dismissButton = { TextButton(onClick = onDismiss, enabled = !busy) { Text("انصراف") } },
+    )
 }

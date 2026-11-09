@@ -118,6 +118,19 @@ class AccessAgentApi(
             JSONObject().put("confirm", action),
         )
 
+    /**
+     * حذف خود پل — آخرین فرمان نقطهٔ صفر (پل v0.5.7؛ فرمان مالک 2026-11-09:
+     * «پرستو موبایل دستور پاک کردن پل را می‌دهد»). پل کد، راز‌ها، توکن‌ها،
+     * گواهی و audit خودش را برای همیشه پاک می‌کند؛ بعد از این، هیچ دسترسی
+     * راه‌دوری باقی نمی‌ماند و پاسخ‌نگرفتن اپ «مسیر موفقیت» است. تنها راه
+     * بازگشت: جریان «افزودن سرور» با رمز root — مثل اولین روز.
+     */
+    fun bridgeUninstall(): JSONObject =
+        post(
+            "/api/admin/bridge/uninstall",
+            JSONObject().put("confirm", "uninstall"),
+        )
+
     companion object {
         /** نرمال‌سازی ورودی URL ادمین: «193.151.142.128:31563» یا با https هر دو قبول */
         fun normalizeUrl(input: String): String {

@@ -103,6 +103,9 @@ data class AuditEvent(
             action == "admin_audit_stream" -> "جریان زندهٔ رویدادها"
             action == "admin_parastoo_status" -> "وضعیت پرستو"
             action == "admin_parastoo_setup_token" -> "خواندن توکن نصب (اپ شما)"
+            action == "admin_bridge_uninstall_start" -> "فرمان حذف خود پل (اپ شما)"
+            action == "admin_bridge_uninstall_refused" -> "حذف پل پذیرفته نشد — گارد جلویش ایستاد"
+            action == "admin_bridge_uninstall_fail" -> "زمان‌بندی حذف پل ناموفق ماند"
             action.startsWith("admin_parastoo_") -> {
                 val op = action.removePrefix("admin_parastoo_").substringBefore('_')
                 "پرستو: " + when (op) {
