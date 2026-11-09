@@ -25,6 +25,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import network.selfevolving.parastoo.mobile.core.appcore.AppCoreUpdater
+import network.selfevolving.parastoo.mobile.ui.components.DetailRow
 
 /**
  * کارت «هستهٔ اپ» — وضعیت کدِ OTA (فرمان مالک 2026-11-09: «بدنه ثابت یک بار
