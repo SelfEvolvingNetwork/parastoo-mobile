@@ -18,6 +18,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Cloud
 import androidx.compose.material.icons.rounded.Dns
 import androidx.compose.material.icons.rounded.ErrorOutline
+import androidx.compose.material.icons.rounded.Key
 import androidx.compose.material.icons.rounded.Memory
 import androidx.compose.material.icons.rounded.Monitor
 import androidx.compose.material.icons.rounded.Refresh
@@ -46,6 +47,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -76,6 +78,7 @@ fun DashboardScreen(
     var loading by remember { mutableStateOf(true) }
     var pauseDialog by remember { mutableStateOf<Boolean?>(null) } // null بسته؛ true/false هدف
     var bridgeUpdateOpen by remember { mutableStateOf(false) }
+    var ghDialog by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
 
     fun refresh(api: network.selfevolving.parastoo.mobile.core.net.AccessAgentApi) {
@@ -246,6 +249,37 @@ fun DashboardScreen(
                         }
                     }
 
+                    // توکن گیت‌هاب برای عامل — فرمان مالک (2026-11-09)
+                    Card(Modifier.fillMaxWidth()) {
+                        Row(
+                            Modifier.padding(horizontal = 14.dp, vertical = 6.dp).fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Icon(
+                                Icons.Rounded.Key,
+                                contentDescription = null,
+                                modifier = Modifier.size(20.dp),
+                                tint = if (st.githubTokenStored) MaterialTheme.colorScheme.primary
+                                else MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                            Spacer(Modifier.width(12.dp))
+                            Column(Modifier.weight(1f)) {
+                                Text("توکن گیت‌هاب برای عامل", style = MaterialTheme.typography.titleSmall)
+                                Spacer(Modifier.height(2.dp))
+                                Text(
+                                    if (st.githubTokenStored) "ذخیره شده — عامل توکن موقتِ هدفمند می‌گیرد"
+                                    else "تنظیم نشده — عامل به گیت‌هاب دسترسی ندارد",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = if (st.githubTokenStored) MaterialTheme.colorScheme.primary
+                                    else MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
+                            TextButton(onClick = { ghDialog = true }) {
+                                Text(if (st.githubTokenStored) "تعویض" else "تنظیم")
+                            }
+                        }
+                    }
+
                     ActionTile(
                         icon = Icons.Rounded.Monitor,
                         title = "مانیتور زنده",
@@ -312,6 +346,18 @@ fun DashboardScreen(
                 session = sNow,
                 currentVersion = vNow,
                 onDismiss = { bridgeUpdateOpen = false },
+            )
+        }
+    }
+
+    if (ghDialog) {
+        val sNow = session
+        if (sNow != null) {
+            GithubTokenDialog(
+                replacing = status?.githubTokenStored == true,
+                api = sNow.api,
+                onSaved = { refresh(sNow.api) },
+                onDismiss = { ghDialog = false },
             )
         }
     }
@@ -386,6 +432,69 @@ private fun PauseReasonDialog(
         },
         confirmButton = { TextButton(onClick = { onConfirm(reason) }) { Text(confirmText) } },
         dismissButton = { TextButton(onClick = onDismiss) { Text("انصراف") } },
+    )
+}
+
+/** دیالوگ توکن گیت‌هاب — فرمان مالک (2026-11-09): اختیاری، از مالک پروژه، یک‌جای مناسب سرور */
+@Composable
+private fun GithubTokenDialog(
+    replacing: Boolean,
+    api: network.selfevolving.parastoo.mobile.core.net.AccessAgentApi,
+    onSaved: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    var token by remember { mutableStateOf("") }
+    var busy by remember { mutableStateOf(false) }
+    var err by remember { mutableStateOf<String?>(null) }
+    val scope = rememberCoroutineScope()
+    AlertDialog(
+        onDismissRequest = { if (!busy) onDismiss() },
+        title = { Text(if (replacing) "تعویض توکن گیت‌هاب" else "تنظیم توکن گیت‌هاب") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(
+                    "این توکن را مالک پروژه از گیت‌هاب می‌گیرد (توصیه: Fine-grained، فقط مخازن پروستو، Contents: Read and Write، انقضای کوتاه). توکن فقط یک بار برای همین سرور شما فرستاده می‌شود؛ پل آن را با دسترسی ۶۰۰ نگه می‌دارد و به عامل هوش مصنوعی فقط «توکن موقتِ هدفمند» می‌دهد. روی این گوشی ذخیره نمی‌شود.",
+                    style = MaterialTheme.typography.bodySmall,
+                )
+                OutlinedTextField(
+                    value = token,
+                    onValueChange = { token = it.trim() },
+                    label = { Text("توکن گیت‌هاب") },
+                    singleLine = true,
+                    visualTransformation = PasswordVisualTransformation(),
+                )
+                err?.let {
+                    Text(
+                        it,
+                        color = MaterialTheme.colorScheme.error,
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(
+                enabled = !busy && token.length >= 20,
+                onClick = {
+                    scope.launch {
+                        busy = true
+                        err = null
+                        try {
+                            withContext(Dispatchers.IO) { api.setGithubToken(token) }
+                            onSaved()
+                            onDismiss()
+                        } catch (e: Exception) {
+                            err = "ذخیره نشد: ${e.message} — چند لحظه بعد دوباره تلاش کنید."
+                        } finally {
+                            busy = false
+                        }
+                    }
+                },
+            ) { Text(if (busy) "در حال ذخیره…" else "ذخیره روی سرور") }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss, enabled = !busy) { Text("انصراف") }
+        },
     )
 }
 

@@ -27,6 +27,11 @@ import java.security.SecureRandom
  *  ۴) اجرای install.sh آجنت — نصب/ارتقای idempotent؛ توکن‌ها هرگز در خروجی چاپ نمی‌شوند
  *  ۵) TOFU گواهی TLS از مسیر عمومی + تطبیق با CERT_SHA256 گزارش نصب
  *  ۶) تست نهایی /api/status با توکن ادمین تازه
+ *  ۷) اختیاری — توکن گیت‌هاب مالک (فرمان مالک، 2026-11-09): اگر کاربر در فرم داده
+ *     باشد، با API ادمین پل به‌عنوان «یک‌جای مناسب سرور» ذخیره می‌شود (github.env
+ *     با دسترسی 600) تا پل بتواند به عامل توکن موقتِ هدفمند بدهد. توکن فقط در
+ *     همین فراخوانی در حافظه است؛ نه ذخیره می‌شود نه لاگ. شکست این مرحله نصب را
+ *     نمی‌شکند — فقط گزارش می‌شود (داشبورد بعداً جبران می‌کند).
  *
  * قرارداد مالکیت (فرمان مالک، 2026-11-08): «رمز روت = مالکیت» — نصب همیشه توکن‌های
  * تازهٔ این گوشی را جایگزین می‌کند (ACCESS_AGENT_RESET_TOKENS=1)؛ چه سرور تازه باشد
@@ -44,6 +49,8 @@ class ServerProvisioner {
         val sshHostKeyFp: String,
         val hostname: String,
         val agentVersion: String,
+        val githubTokenSet: Boolean? = null, // null = اصلاً تلاش نشد (توکنی داده نشد)
+        val githubLogin: String = "",       // اگر سرور توانست اعتبارسنجی کند
     )
 
     /** باندل جاسازی‌شدهٔ APK — فقط فالبک آفلاین برای سرور نو؛ صحتش با sha256 داخل APK */
@@ -85,6 +92,7 @@ class ServerProvisioner {
         sshPort: Int,
         password: String,
         agentPort: Int,
+        githubToken: String = "",
         onPhase: (String) -> Unit = {},
         onLog: (String) -> Unit = {},
     ): ProvisionResult {
@@ -252,6 +260,30 @@ class ServerProvisioner {
                     e,
                 )
             }
+            // ---------- ۷) اختیاری: توکن گیت‌هاب مالک — «یک‌جای مناسب سرور» ----------
+            var ghSet: Boolean? = null
+            var ghLogin = ""
+            if (githubToken.isNotBlank()) {
+                onPhase("آماده‌سازی توکن گیت‌هاب")
+                try {
+                    val res = api.setGithubToken(githubToken.trim())
+                    ghSet = res.optBoolean("stored", false)
+                    val v = res.optJSONObject("validation")
+                    ghLogin = v?.optString("login") ?: ""
+                    if (ghSet == true) {
+                        onLog(
+                            if (ghLogin.isNotBlank()) "توکن گیت‌هاب روی سرور ذخیره شد (حساب: $ghLogin)"
+                            else "توکن گیت‌هاب روی سرور ذخیره شد (اعتبارسنجی آنلاین از سرور ممکن نشد — طبیعی در برخی شبکه‌ها)"
+                        )
+                    } else {
+                        onLog("ذخیرهٔ توکن گیت‌هاب تأیید نشد — بعداً از داشبورد می‌توانید اضافه کنید")
+                    }
+                } catch (e: Exception) {
+                    ghSet = false
+                    onLog("ذخیرهٔ توکن گیت‌هاب ناکام ماند (${e.message}) — نصب سالم است؛ از داشبورد دوباره تلاش کنید")
+                }
+            }
+
             onPhase("انجام شد")
             onLog("پل v${status.version} روی «${status.hostname}» آماده است")
 

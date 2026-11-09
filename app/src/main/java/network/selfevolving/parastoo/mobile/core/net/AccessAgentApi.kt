@@ -89,6 +89,18 @@ class AccessAgentApi(
     fun parastooLifecycle(): LifecycleStatus =
         LifecycleStatus.from(get("/api/admin/parastoo/lifecycle-status"))
 
+    /**
+     * ذخیرهٔ توکن گیت‌هاب مالک روی سرور (فرمان مالک، 2026-11-09): اپ توکن را
+     * (اختیاری) از مالک می‌گیرد و فقط یک بار از این مسیر TLS پین‌شده به پل
+     * می‌دهد؛ پل آن را در github.env با دسترسی 600 نگه می‌دارد و از آن پس
+     * عامل هوش مصنوعی توکن موقتِ هدفمند (purpose-gated) می‌گیرد — هرگز این اپ
+     * یا عامل، «پات مالک» را ذخیرهٔ پایدار نمی‌کنند. پاسخ شامل validation است
+     * (اعتبارسنجی بهترین‌تلاشی از سمت سرور؛ آفلاین هم ذخیره می‌شود).
+     * خودِ توکن هرگز در لاگ اپ یا پل نمی‌آید.
+     */
+    fun setGithubToken(token: String): JSONObject =
+        post("/api/admin/set-github-token", JSONObject().put("token", token))
+
     /** اجرای یک عملیات چرخهٔ عمر؛ عملیات تخریبی، نام عملیات را به‌عنوان confirm می‌خواهند */
     fun parastooLifecycleAction(action: String): JSONObject =
         post(

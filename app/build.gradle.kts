@@ -13,8 +13,8 @@ android {
         applicationId = "network.selfevolving.parastoo.mobile"
         minSdk = 26
         targetSdk = 35
-        versionCode = 10
-        versionName = "0.4.5"
+        versionCode = 11
+        versionName = "0.4.6"
     }
 
     // امضای پایدار CI: همهٔ بیلدها با یک کلید (Secrets گیت‌هاب) تا هر نسخه

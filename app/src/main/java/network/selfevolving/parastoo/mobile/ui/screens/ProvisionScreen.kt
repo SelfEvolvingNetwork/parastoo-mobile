@@ -105,6 +105,7 @@ private val PROVISION_STEPS = listOf(
     Icons.Rounded.Terminal to "نصب پل روی سرور",
     Icons.Rounded.Security to "ثبت گواهی و کلیدها",
     Icons.Rounded.CheckCircle to "تست نهایی اتصال",
+    Icons.Rounded.Key to "آماده‌سازی توکن هوش مصنوعی",
 )
 
 private fun stepIndexFor(phase: String): Int = when {
@@ -114,7 +115,8 @@ private fun stepIndexFor(phase: String): Int = when {
     phase.contains("اجرای") -> 4
     phase.contains("گواهی") -> 5
     phase.contains("نهایی") -> 6
-    phase.contains("انجام شد") -> 7
+    phase.contains("توکن") -> 7
+    phase.contains("انجام شد") -> 8
     phase.contains("اتصال") -> 1
     phase.contains("بسته") -> 0
     else -> 0
@@ -132,6 +134,7 @@ fun ProvisionScreen(onDone: () -> Unit) {
     var agentPort by remember { mutableStateOf("31563") }
     var password by remember { mutableStateOf("") }
     var showPassword by remember { mutableStateOf(false) }
+    var githubToken by remember { mutableStateOf("") }
     var advanced by remember { mutableStateOf(false) }
 
     var running by remember { mutableStateOf(false) }
@@ -208,6 +211,7 @@ fun ProvisionScreen(onDone: () -> Unit) {
                                             SecretVault.saveAgentToken(context, id, res.agentToken)
                                         }
                                         password = ""
+                                        githubToken = ""
                                         onDone()
                                     } catch (e: Exception) {
                                         error = e.message ?: e.javaClass.simpleName
@@ -226,6 +230,7 @@ fun ProvisionScreen(onDone: () -> Unit) {
                         agentPort = agentPort,
                         password = password,
                         showPassword = showPassword,
+                        githubToken = githubToken,
                         advanced = advanced,
                         error = error,
                         onName = { name = it },
@@ -233,6 +238,7 @@ fun ProvisionScreen(onDone: () -> Unit) {
                         onSshPort = { sshPort = it },
                         onAgentPort = { agentPort = it },
                         onPassword = { password = it },
+                        onGithubToken = { githubToken = it },
                         onTogglePassword = { showPassword = !showPassword },
                         onAdvanced = { advanced = it },
                         onInstall = {
@@ -249,6 +255,7 @@ fun ProvisionScreen(onDone: () -> Unit) {
                                             sshPort = sshPort.trim().toIntOrNull() ?: 22,
                                             password = password,
                                             agentPort = agentPort.trim().toIntOrNull() ?: 31563,
+                                            githubToken = githubToken.trim(),
                                             onPhase = { p -> phase = p },
                                             onLog = { line -> log(line) },
                                         )
@@ -311,6 +318,7 @@ private fun FormView(
     agentPort: String,
     password: String,
     showPassword: Boolean,
+    githubToken: String,
     advanced: Boolean,
     error: String?,
     onName: (String) -> Unit,
@@ -318,6 +326,7 @@ private fun FormView(
     onSshPort: (String) -> Unit,
     onAgentPort: (String) -> Unit,
     onPassword: (String) -> Unit,
+    onGithubToken: (String) -> Unit,
     onTogglePassword: () -> Unit,
     onAdvanced: (Boolean) -> Unit,
     onInstall: () -> Unit,
@@ -389,6 +398,23 @@ private fun FormView(
                         contentDescription = if (showPassword) "پنهان کردن رمز" else "نمایش رمز",
                     )
                 }
+            },
+            modifier = Modifier.fillMaxWidth(),
+        )
+
+        // فرمان مالک (2026-11-09): توکن گیت‌هاب اختیاری از مالک — یک‌جای مناسب سرور
+        OutlinedTextField(
+            value = githubToken,
+            onValueChange = onGithubToken,
+            label = { Text("توکن گیت‌هاب (اختیاری)") },
+            singleLine = true,
+            visualTransformation = PasswordVisualTransformation(),
+            leadingIcon = { Icon(Icons.Rounded.Key, null, Modifier.size(18.dp)) },
+            supportingText = {
+                Text(
+                    "برای دسترسی عامل هوش مصنوعی به گیت‌هاب. توصیه: توکن Fine-grained فقط برای مخازن پروستو با Contents: Read and Write و تاریخ انقضا. توکن فقط یک بار برای «سرور خودتان» فرستاده و آن‌جا با دسترسی ۶۰۰ نگه داشته می‌شود؛ روی این گوشی ذخیره نمی‌شود.",
+                    style = MaterialTheme.typography.labelSmall,
+                )
             },
             modifier = Modifier.fillMaxWidth(),
         )
@@ -640,6 +666,16 @@ private fun DoneView(
                     "${res.sshHostKeyFp.take(12)}…${res.sshHostKeyFp.takeLast(6)}",
                     mono = true,
                 )
+                res.githubTokenSet?.let { gh ->
+                    DetailRow(
+                        "توکن گیت‌هاب",
+                        when {
+                            gh && res.githubLogin.isNotBlank() -> "ذخیره شد (حساب: ${res.githubLogin})"
+                            gh -> "ذخیره شد"
+                            else -> "ذخیره نشد — از داشبورد اضافه کنید"
+                        },
+                    )
+                }
             }
         }
         InfoBanner(
