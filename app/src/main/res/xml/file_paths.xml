@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- مسیرهای مجاز FileProvider — فقط پوشهٔ دانلود آپدیت اپ (حداقل‌دسترسی) -->
+<paths>
+    <cache-path
+        name="app-update"
+        path="app-update/" />
+</paths>

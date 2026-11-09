@@ -336,6 +336,8 @@ fun DashboardScreen(
                         currentVersion = st.version,
                         onRefresh = { refresh(s.api) },
                     )
+                    // به‌روزرسانی خودکار خود اپ — حلقهٔ آخر آپدیت‌ها (فرمان مالک)
+                    AppAutoUpdateCard()
 
                     Text(
                         "وضعیت هر ۱۵ ثانیه خودکار تازه می‌شود.",

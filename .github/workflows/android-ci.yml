@@ -66,6 +66,10 @@ jobs:
     permissions:
       contents: write
     steps:
+      # برای خواندن versionName/versionCode از app/build.gradle.kts (ساخت مانیفست)
+      - name: Checkout
+        uses: actions/checkout@v4
+
       - name: Download built APK
         uses: actions/download-artifact@v4
         with:
@@ -78,8 +82,30 @@ jobs:
         run: |
           TAG="mobile-r${{ github.run_number }}"
           mv apk/app-debug.apk parastoo-mobile-debug.apk
+          # صحت دو-کاناله برای آپدیت‌کنندهٔ خودکار خود اپ (الگوی پل):
+          # کانال اول = sha256 کنار دارایی رلیز؛ کانال دوم = RELEASE_MANIFEST.json
+          # روی main (گام بعد). مانیفست versionCode دارد — گارد downgrade اپ.
+          sha256sum parastoo-mobile-debug.apk | awk '{print $1}' > parastoo-mobile-debug.apk.sha256
+          VN=$(grep -oE 'versionName = "[^"]+"' app/build.gradle.kts | head -1 | cut -d'"' -f2)
+          VC=$(grep -oE 'versionCode = [0-9]+' app/build.gradle.kts | head -1 | awk '{print $3}')
+          python3 -c "import json,sys,time; vn,vc=sys.argv[1],int(sys.argv[2]); sha=open('parastoo-mobile-debug.apk.sha256').read().strip(); json.dump({'versionName':vn,'versionCode':vc,'filename':'parastoo-mobile-debug.apk','sha256':sha,'created_at':time.strftime('%Y-%m-%dT%H:%M:%SZ',time.gmtime())}, open('manifest.json','w'), indent=2)" "$VN" "$VC"
+          cat manifest.json
           gh release create "$TAG" \
             --repo "$GITHUB_REPOSITORY" \
             --title "Parastoo Mobile - build $TAG" \
-            --notes "Automated CI build of commit ${GITHUB_SHA:0:7}. Install: download the APK and sideload it. The Parastoo panel Downloads page always serves the latest verified build." \
-            "parastoo-mobile-debug.apk#parastoo-mobile-debug.apk"
+            --notes "Automated CI build of commit ${GITHUB_SHA:0:7}. Install: download the APK and sideload it — or use the in-app self-updater (card «به‌روزرسانی خودکار اپ»). The Parastoo panel Downloads page always serves the latest verified build." \
+            "parastoo-mobile-debug.apk#parastoo-mobile-debug.apk" \
+            "parastoo-mobile-debug.apk.sha256#parastoo-mobile-debug.apk.sha256" \
+            "manifest.json#manifest.json"
+
+      - name: به‌روزرسانی RELEASE_MANIFEST.json روی main (کانال دوم صحت)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          CONTENT=$(base64 -w0 manifest.json)
+          EXISTING_SHA=$(gh api "repos/$GITHUB_REPOSITORY/contents/RELEASE_MANIFEST.json" --jq '.sha' 2>/dev/null || true)
+          ARGS=(repos/$GITHUB_REPOSITORY/contents/RELEASE_MANIFEST.json \
+                -f message="[skip ci] app release manifest mobile-r${{ github.run_number }}" \
+                -f content="$CONTENT" -f branch=main)
+          [ -n "$EXISTING_SHA" ] && ARGS+=(-f sha="$EXISTING_SHA")
+          gh api -X PUT "${ARGS[@]}" --jq '.commit.sha'
