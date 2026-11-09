@@ -159,8 +159,20 @@ fun LifecycleScreen(serverId: Long, onBack: () -> Unit) {
                                     )
                                     Spacer(Modifier.width(8.dp))
                                     Text(
-                                        if (ok) "${faAction(s.action)} انجام شد" else "${faAction(s.action)} ناکام ماند",
+                                        when {
+                                            ok && s.action == "uninstall" -> "نقطهٔ صفر — همه‌چیز پاک شد"
+                                            ok -> "${faAction(s.action)} انجام شد"
+                                            else -> "${faAction(s.action)} ناکام ماند"
+                                        },
                                         style = MaterialTheme.typography.titleSmall,
+                                    )
+                                }
+                                if (ok && s.action == "uninstall") {
+                                    Text(
+                                        "سرور مثل روز اول است؛ هیچ اثری و گردی باقی نمانده. " +
+                                            "نصب تازه با دامنهٔ پیش‌فرض zeolitecenter.ir از همین صفحه شروع می‌شود.",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                                     )
                                 }
                                 TextButton(onClick = { showLog = !showLog }) {
@@ -247,7 +259,10 @@ fun LifecycleScreen(serverId: Long, onBack: () -> Unit) {
                 onDismissRequest = { pendingConfirm = null },
                 title = { Text("نصب پرستو؟") },
                 text = {
-                    Text("نصب تازه روی این سرور انجام می‌شود؛ چند دقیقه زمان می‌برد.")
+                    Text(
+                        "نصب تازه روی این سرور انجام می‌شود؛ دامنهٔ پیش‌فرض zeolitecenter.ir برقرار می‌شود " +
+                            "و چند دقیقه زمان می‌برد."
+                    )
                 },
                 confirmButton = {
                     TextButton(onClick = { pendingConfirm = null; fire(kind) }) { Text("انجام بده") }
@@ -272,7 +287,9 @@ private fun TypedConfirmDialog(kind: String, onConfirm: () -> Unit, onDismiss: (
     val (title, body, word) = when (kind) {
         "uninstall" -> Triple(
             "حذف کامل پرستو",
-            "همهٔ چیز پرستو پاک می‌شود: پنل، گیت، سایت‌ها، پروژه‌ها، داده‌ها و گواهی‌ها. بازگشتی وجود ندارد. برای تأیید بنویسید: حذف",
+            "همهٔ چیز پرستو پاک می‌شود: پنل، گیت، سایت‌ها، پروژه‌ها، داده‌ها، گواهی‌ها و هویت دامنه — " +
+                "سرور به نقطهٔ صفر می‌رسد و هیچ اثری و گردی باقی نمی‌ماند. بازگشتی وجود ندارد. " +
+                "برای تأیید بنویسید: حذف",
             "حذف",
         )
         else -> Triple(
