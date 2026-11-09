@@ -13,6 +13,7 @@ import java.io.File
 import java.io.InputStreamReader
 import java.security.MessageDigest
 import java.security.SecureRandom
+import org.json.JSONObject
 
 /**
  * فراهم‌سازی کامل سرور تازه از داخل اپ — سناریوی مالک (2026-11-08):
