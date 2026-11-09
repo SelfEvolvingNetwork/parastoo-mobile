@@ -67,6 +67,49 @@ object AppReleaseClient {
     }
 
     /**
+     * بخش «core» مانیفست انتشار — بستهٔ هستهٔ اپ (کدِ OTA بی‌نصب).
+     * قرارداد: RELEASE_MANIFEST.json علاوه بر فیلدهای APK، بخش اختیاری «core»
+     * دارد (schema: parastoo-core/1). اگر بخش نبود (مانیفست کهنه) null
+     * برمی‌گردد — آپدیتر هسته آن را «به‌روز» می‌فهمد، نه خطا.
+     */
+    fun fetchCoreRelease(
+        onLog: (String) -> Unit = {},
+    ): CoreRelease? {
+        var manifest: JSONObject? = null
+        for (base in listOf("", PROXY)) {
+            try {
+                manifest = JSONObject(httpGet(base + MANIFEST_URL))
+                break
+            } catch (e: Exception) {
+                onLog("مانیفست از «${if (base.isEmpty()) "مستقیم" else "gh-proxy"}» نیامد: ${e.message}")
+            }
+        }
+        val m = manifest ?: throw ReleaseException("مانیفست انتشار از هیچ مسیری گرفته نشد")
+        if (!m.has("core")) return null
+        val c = m.optJSONObject("core") ?: return null
+        val rev = c.optInt("revision", 0)
+        val vc = c.optInt("version_code", 0)
+        val vn = c.optString("version_name")
+        val minBody = c.optInt("min_body_version_code", 0)
+        val filename = c.optString("filename")
+        val sha = c.optString("sha256")
+        if (rev <= 0 || vc <= 0 || filename.isEmpty() || sha.length != 64) {
+            throw ReleaseException("بخش core مانیفست انتشار ناقص است")
+        }
+        return CoreRelease(rev, vc, vn, minBody, filename, sha)
+    }
+
+    /** نسخهٔ هسته از مانیفست انتشار — قرارداد نسخهٔ کدِ OTA */
+    data class CoreRelease(
+        val revision: Int,
+        val versionCode: Int,
+        val versionName: String,
+        val minBodyVersionCode: Int,
+        val filename: String,
+        val sha256: String,
+    )
+
+    /**
      * دانلود جریانی APK به فایل مقصد با محاسبهٔ sha256 در حین دانلود —
      * بسته چند ده مگابایت است و هرگز کامل در رم نگه داشته نمی‌شود.
      * اگر sha256 با مانیفست نخواند، فایل حذف و ReleaseException پرتاب می‌شود.

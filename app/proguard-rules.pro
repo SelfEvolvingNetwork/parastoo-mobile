@@ -16,3 +16,14 @@
 -dontwarn net.i2p.crypto.eddsa.**
 -dontwarn org.slf4j.**
 -dontwarn java.nio.**
+
+# ===== معماری بدنه ثابت + هسته (v0.5.0) =====
+# کلاس‌های قرارداد و بنیاد باید با نام اصلی بمانند: هستهٔ خارجی (dex از کانال
+# انتشار) در زمان کامپایل همین نام‌ها را می‌بیند و در runtime از کلاس‌لودر
+# والد به آن‌ها می‌رسد. بیلدهای منتشرشده debug هستند (بدون R8)؛ این قواعد
+# محافظِ بیلدهای release آینده‌اند.
+-keep class network.selfevolving.parastoo.mobile.core.contract.** { *; }
+-keep class network.selfevolving.parastoo.mobile.core.security.** { *; }
+-keep class network.selfevolving.parastoo.mobile.core.config.** { *; }
+-keep class network.selfevolving.parastoo.mobile.core.data.** { *; }
+-keep class network.selfevolving.parastoo.mobile.core.model.** { *; }

@@ -13,3 +13,6 @@ captures/
 *.jks
 *.keystore
 .secrets/
+
+# بستهٔ هستهٔ جاسازی‌شده — ساختهٔ گام pack در CI است، در مخزن یخ زده نیست
+app/src/main/assets/core/core-bundle.zip

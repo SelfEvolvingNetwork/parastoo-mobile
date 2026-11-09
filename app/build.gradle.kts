@@ -2,7 +2,6 @@ plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
     id("org.jetbrains.kotlin.plugin.compose")
-    id("com.google.devtools.ksp")
 }
 
 android {
@@ -13,8 +12,11 @@ android {
         applicationId = "network.selfevolving.parastoo.mobile"
         minSdk = 26
         targetSdk = 35
-        versionCode = 18
-        versionName = "0.4.13"
+        // معماری «بدنه ثابت + هسته» (فرمان مالک 2026-11-09): این APK فقط بدنه
+        // است (لودر هسته + امنیت + فونت/تم) و به‌ندرت آپدیت می‌شود؛ همهٔ رابط
+        // و منطق در :coreimpl است که بی‌نصب از کانال انتشار تازه می‌شود.
+        versionCode = 19
+        versionName = "0.5.0"
     }
 
     // امضای پایدار CI: همهٔ بیلدها با یک کلید (Secrets گیت‌هاب) تا هر نسخه
@@ -41,6 +43,9 @@ android {
             }
         }
         release {
+            // نکتهٔ معماری: بیلدهای منتشرشده debug هستند (بدون R8) تا کلاس‌لودر
+            // هسته همیشه نام‌های اصلی را ببیند؛ اگر روزی release منتشر شد،
+            // قواعد keep در proguard-rules.pro نمادهای بدنه/هسته را حفظ می‌کنند.
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
@@ -65,33 +70,21 @@ android {
 }
 
 dependencies {
+    // بنیاد مشترک: قرارداد بدنه↔هسته + گاوصندوق + پین + دیتابیس + پیکربندی هات
+    // (کلاس‌هایش در dex همین APK زندگی می‌کنند و هستهٔ خارجی از والد می‌بیند)
+    implementation(project(":foundation"))
+
     implementation(platform("androidx.compose:compose-bom:2024.09.03"))
     implementation("androidx.compose.ui:ui")
-    implementation("androidx.compose.ui:ui-tooling-preview")
     implementation("androidx.compose.material3:material3")
     implementation("androidx.compose.material:material-icons-extended")
     implementation("androidx.activity:activity-compose:1.9.2")
-    implementation("androidx.navigation:navigation-compose:2.8.2")
-    implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.8.6")
-    implementation("androidx.lifecycle:lifecycle-runtime-compose:2.8.6")
     implementation("androidx.core:core-ktx:1.13.1")
     implementation("androidx.appcompat:appcompat:1.7.0")
     // قفل گوشی (بیومتریک/PIN) برای ورود — قرارداد مالک: ورودهای بعدی فقط با قفل دستگاه
     implementation("androidx.biometric:biometric:1.1.0")
-    // رمزنگاری در حال سکون: Keystore سخت‌افزاری + EncryptedSharedPreferences
-    implementation("androidx.security:security-crypto:1.1.0-alpha06")
-    // شبکه: HTTPS با پین گواهی خودامضا (قرارداد access-agent)
-    implementation("com.squareup.okhttp3:okhttp:4.12.0")
-    // فراهم‌سازی سرور تازه: کلاینت SSH برای نصب پل از داخل اپ (سناریوی مالک)
-    implementation("com.hierynomus:sshj:0.38.0")
-    // BC کامل — رفع «no such algorithm: X25519 for provider BC»:
-    // اندروید BC قدیمیِ بی‌X25519 دارد و sshj آن را «ثبت‌شده» می‌پندارد؛
-    // CryptoFix نسخهٔ کامل را جای آن می‌نشاند (core/security/CryptoFix.kt)
-    implementation("org.bouncycastle:bcprov-jdk18on:1.78.1")
-    // دیتابیس محلی پروفایل‌ها (بدون هیچ راز)
-    implementation("androidx.room:room-runtime:2.6.1")
-    implementation("androidx.room:room-ktx:2.6.1")
-    ksp("androidx.room:room-compiler:2.6.1")
+    // بقیهٔ کتابخانه‌ها (okhttp/sshj/BC/room) از :foundation می‌آیند —
+    // هستهٔ خارجی هم در runtime از همین کلاس‌لودر والد مصرفشان می‌کند.
 
     debugImplementation("androidx.compose.ui:ui-tooling")
 }

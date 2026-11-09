@@ -28,6 +28,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import network.selfevolving.parastoo.mobile.core.appcore.AppCoreUpdater
 import network.selfevolving.parastoo.mobile.core.provision.AppUpdater
 import network.selfevolving.parastoo.mobile.ui.components.BackTopBar
 import network.selfevolving.parastoo.mobile.ui.components.DetailRow
@@ -65,6 +66,9 @@ fun AppSettingsScreen(onBack: () -> Unit) {
 
             // به‌روزرسانی خودکار خود اپ — بررسی در شروع اپ هم بی‌صدا ادامه دارد
             AppAutoUpdateCard()
+
+            // هستهٔ اپ — کدِ OTA بی‌نصب (معماری بدنه ثابت + هسته؛ فرمان مالک)
+            AppCoreCard()
 
             SectionLabel("امنیت")
 
@@ -104,6 +108,15 @@ fun AppSettingsScreen(onBack: () -> Unit) {
                     verticalArrangement = Arrangement.spacedBy(10.dp),
                 ) {
                     DetailRow("نسخه", "v$versionName (versionCode $versionCode)")
+                    DetailRow(
+                        "هستهٔ اپ",
+                        buildString {
+                            val rev = AppCoreUpdater.activeRevision(context)
+                            append(if (rev > 0) "rev$rev" else "—")
+                            val src = AppCoreUpdater.activeSource(context)
+                            if (src.isNotBlank()) append(" از $src")
+                        },
+                    )
                     DetailRow("منبع کد", "github.com/SelfEvolvingNetwork/parastoo-mobile", mono = true)
                     DetailRow("مجوز", "MIT — Copyright © 2026 SelfEvolvingNetwork")
                     Text(

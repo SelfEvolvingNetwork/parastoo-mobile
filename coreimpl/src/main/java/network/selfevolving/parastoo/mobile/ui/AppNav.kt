@@ -6,6 +6,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import network.selfevolving.parastoo.mobile.core.appcore.AppCoreUpdater
 import network.selfevolving.parastoo.mobile.core.provision.AppUpdater
 import network.selfevolving.parastoo.mobile.ui.screens.AgentScreen
 import network.selfevolving.parastoo.mobile.ui.screens.AppSettingsScreen
@@ -32,6 +33,11 @@ fun AppRoot() {
     // به‌روزرسانی خودکار خود اپ — بررسی بی‌صدا در هر شروعِ اپ (با فاصلهٔ
     // حداقلی داخلی خودش)؛ کارت وضعیتش در «تنظیمات اپ» است
     LaunchedEffect(Unit) { AppUpdater.check(context) }
+
+    // به‌روزرسانی خودکار هستهٔ اپ — بی‌نصب و کاملاً بی‌پرسش (فرمان مالک:
+    // «هسته توسط بدنه بروز شود؛ بدون نصب مجدد»)؛ دانلود+راستی‌آزمایی+تعویض
+    // و بازآرایی نرم اکتیویتی. کارت وضعیتش در «تنظیمات اپ» است.
+    LaunchedEffect(Unit) { AppCoreUpdater.check(context) }
 
     NavHost(navController = nav, startDestination = "servers") {
         composable("servers") {

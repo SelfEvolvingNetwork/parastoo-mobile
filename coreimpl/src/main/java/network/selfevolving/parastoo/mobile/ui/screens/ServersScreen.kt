@@ -57,7 +57,6 @@ import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import network.selfevolving.parastoo.mobile.R
 import network.selfevolving.parastoo.mobile.core.data.Db
 import network.selfevolving.parastoo.mobile.core.data.ServerProfileEntity
 import network.selfevolving.parastoo.mobile.core.net.AccessAgentApi
@@ -93,7 +92,7 @@ fun ServersScreen(
                 title = {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(
-                            painter = painterResource(R.drawable.ic_swallow),
+                            painter = painterResource(network.selfevolving.parastoo.mobile.foundation.R.drawable.ic_swallow),
                             contentDescription = null,
                             modifier = Modifier.size(26.dp),
                             tint = MaterialTheme.colorScheme.primary,

@@ -65,7 +65,6 @@ import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import network.selfevolving.parastoo.mobile.R
 import network.selfevolving.parastoo.mobile.core.data.Db
 import network.selfevolving.parastoo.mobile.core.data.ServerProfileEntity
 import network.selfevolving.parastoo.mobile.core.net.AccessAgentApi
@@ -95,7 +94,12 @@ fun rememberSession(serverId: Long): ServerSession? {
     return session
 }
 
-/** نشان پرستو: دایرهٔ سبزِ لانه با پرنده — امضای بصری اپ */
+/**
+ * نشان پرستو در هسته — قرارداد با بدنه.
+ * runtime: رزولوشن کلاس parent-first است و نسخهٔ بدنه (:app — با R خودش از
+ * :foundation) بارگذاری می‌شود؛ این پیاده‌سازی پشتیبانِ کامپایلِ مستقل هسته است.
+ * نسخهٔ اصلی: app/src/main/java/.../ui/components/SwallowBadge.kt
+ */
 @Composable
 fun SwallowBadge(modifier: Modifier = Modifier, size: Dp = 104.dp) {
     Box(
@@ -105,7 +109,7 @@ fun SwallowBadge(modifier: Modifier = Modifier, size: Dp = 104.dp) {
         contentAlignment = Alignment.Center,
     ) {
         Icon(
-            painter = painterResource(R.drawable.ic_swallow),
+            painter = painterResource(network.selfevolving.parastoo.mobile.foundation.R.drawable.ic_swallow),
             contentDescription = "پرستو",
             modifier = Modifier.size(size * 0.52f),
             tint = MaterialTheme.colorScheme.primary,

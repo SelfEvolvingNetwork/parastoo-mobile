@@ -23,6 +23,7 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -31,16 +32,31 @@ import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import network.selfevolving.parastoo.mobile.body.AppCoreLoader
+import network.selfevolving.parastoo.mobile.body.CoreFatalScreen
 import network.selfevolving.parastoo.mobile.core.security.BiometricGate
-import network.selfevolving.parastoo.mobile.ui.AppRoot
 import network.selfevolving.parastoo.mobile.ui.components.SwallowBadge
 import network.selfevolving.parastoo.mobile.ui.theme.ParastooTheme
 
 /**
- * اکتیویتی یکتا. ورود اولین بار (و هر بار باز شدن اپ) با قفل گوشی —
- * قرارداد مالک: اطلاعات سرور فقط یک بار وارد می‌شود، بعد از آن بیومتریک/PIN.
+ * اکتیویتی یکتا — بدنهٔ ثابت اپ.
+ *
+ * وظایف بدنه (و فقط همین‌ها): گیت قفل گوشی، تم/فونت/RTL، و لود هسته.
+ * هر رابط کاربری و منطقی در هسته است (AppCoreEntry.App از کلاس‌لودرِ هسته) —
+ * قرارداد مالک 2026-11-09: «بدنه یک بار نصب می‌ماند، هسته بی‌نصب بروز می‌شود».
+ *
+ * لود هسته روی IO انجام می‌شود و نشستِ قفل‌گشایی در companion می‌ماند تا
+ * recreate پس از تعویض هسته، گیت را دوباره باز نکند (بدون هیچ دیالوگ).
  */
 class MainActivity : AppCompatActivity() {
+
+    companion object {
+        /** نشست باز — با recreate می‌ماند (همان پروسه) تا هسته‌سوییچ بی‌صدا باشد */
+        @Volatile
+        var sessionUnlocked: Boolean = false
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -49,24 +65,52 @@ class MainActivity : AppCompatActivity() {
             // (دستور مالک 2026-11-08: متن‌های فارسی باید راست به چپ باشند)
             CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl) {
                 ParastooTheme {
-                    val hasGate = BiometricGate.available(this)
-                    var unlocked by remember { mutableStateOf(!hasGate) }
-                    if (unlocked) {
-                        AppRoot()
-                    } else {
-                        LockScreen(
-                            hasGate = hasGate,
-                            onStartUnlock = {
-                                BiometricGate.unlock(
-                                    this,
-                                    onSuccess = { unlocked = true },
-                                    onError = { },
+                    val coreState by produceState<AppCoreLoader.Result?>(initialValue = null) {
+                        value = withContext(Dispatchers.IO) {
+                            AppCoreLoader.load(applicationContext)
+                        }
+                    }
+                    when (val st = coreState) {
+                        null -> BootScreen()
+                        is AppCoreLoader.Result.Failed -> CoreFatalScreen(st.reason)
+                        is AppCoreLoader.Result.Loaded -> {
+                            val hasGate = BiometricGate.available(this@MainActivity)
+                            var unlocked by remember {
+                                mutableStateOf(sessionUnlocked || !hasGate)
+                            }
+                            if (unlocked) {
+                                sessionUnlocked = true
+                                st.entry.App()
+                            } else {
+                                LockScreen(
+                                    hasGate = hasGate,
+                                    onStartUnlock = {
+                                        BiometricGate.unlock(
+                                            this@MainActivity,
+                                            onSuccess = { unlocked = true },
+                                            onError = { },
+                                        )
+                                    },
                                 )
-                            },
-                        )
+                            }
+                        }
                     }
                 }
             }
+        }
+    }
+}
+
+/** لحظهٔ لود هسته — همان هویت بصری قفل صفحه */
+@Composable
+private fun BootScreen() {
+    Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
+        Column(
+            modifier = Modifier.fillMaxSize().padding(32.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center,
+        ) {
+            SwallowBadge(size = 116.dp)
         }
     }
 }

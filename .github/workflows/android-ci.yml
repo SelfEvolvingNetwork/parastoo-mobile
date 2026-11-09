@@ -47,14 +47,31 @@ jobs:
             echo "ANDROID_KEY_PASSWORD=$ANDROID_KEY_PASSWORD"
           } >> "$GITHUB_ENV"
 
-      - name: Build debug APK
+      # پیش‌پرواز مرجع‌یابی صلیبی سه ماژول (درس ران ۲۶) — پیش از هر بیلد
+      - name: Preflight cross-module refs
+        run: python3 scripts/preflight_refs.py
+
+      # ۱) هسته: AAR ماژول :coreimpl (کامپوننت‌های SDK همین‌جا نصب می‌شوند)
+      - name: Build core module (AAR)
+        run: gradle :coreimpl:assembleDebug --no-daemon
+
+      # ۲) بستهٔ هسته: classes.jar → d8 → classes.dex + مانیفست + zip
+      #    و جاسازی در assets بدنه (خط پایین اطمینان rollback لودر)
+      - name: Pack core bundle (dex + manifest)
+        run: bash scripts/pack_core.sh coreimpl/build/outputs/aar/coreimpl-debug.aar "$GITHUB_RUN_NUMBER"
+
+      # ۳) بدنه: APK با بستهٔ هستهٔ جاسازی‌شده
+      - name: Build debug APK (body)
         run: gradle :app:assembleDebug --no-daemon
 
-      - name: Upload APK artifact
+      - name: Upload artifacts (APK + core bundle)
         uses: actions/upload-artifact@v4
         with:
           name: parastoo-mobile-debug-apk
-          path: app/build/outputs/apk/debug/app-debug.apk
+          path: |
+            app/build/outputs/apk/debug/app-debug.apk
+            core/build/parastoo-core.zip
+            core/build/parastoo-core.zip.sha256
 
   # انتشار خودکار: هر push سبز به main یک رلیز گیت‌هاب با تگ متحرک
   # mobile-r<run_number> می‌سازد؛ ورکر پنل پرستو همین را به بخش دانلودهای
@@ -70,7 +87,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Download built APK
+      - name: Download built artifacts
         uses: actions/download-artifact@v4
         with:
           name: parastoo-mobile-debug-apk
@@ -81,21 +98,29 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           TAG="mobile-r${{ github.run_number }}"
-          mv apk/app-debug.apk parastoo-mobile-debug.apk
-          # صحت دو-کاناله برای آپدیت‌کنندهٔ خودکار خود اپ (الگوی پل):
+          # artifact چند-فایلی است و مسیرها نسبت به جد مشترک حفظ می‌شوند —
+          # یافتن مقاوم به ساختار:
+          mv "$(find apk -name 'app-debug.apk')" parastoo-mobile-debug.apk
+          mv "$(find apk -name 'parastoo-core.zip')" parastoo-core.zip
+          mv "$(find apk -name 'parastoo-core.zip.sha256')" parastoo-core.zip.sha256
+          # صحت دو-کاناله برای آپدیت‌کننده‌های خودکار (الگوی پل):
           # کانال اول = sha256 کنار دارایی رلیز؛ کانال دوم = RELEASE_MANIFEST.json
-          # روی main (گام بعد). مانیفست versionCode دارد — گارد downgrade اپ.
+          # روی main (گام بعد). مانیفست versionCode و بخش core دارد —
+          # گارد downgrade اپ و هسته.
           sha256sum parastoo-mobile-debug.apk | awk '{print $1}' > parastoo-mobile-debug.apk.sha256
           VN=$(grep -oE 'versionName = "[^"]+"' app/build.gradle.kts | head -1 | cut -d'"' -f2)
           VC=$(grep -oE 'versionCode = [0-9]+' app/build.gradle.kts | head -1 | awk '{print $3}')
-          python3 -c "import json,sys,time; vn,vc=sys.argv[1],int(sys.argv[2]); sha=open('parastoo-mobile-debug.apk.sha256').read().strip(); json.dump({'versionName':vn,'versionCode':vc,'filename':'parastoo-mobile-debug.apk','sha256':sha,'created_at':time.strftime('%Y-%m-%dT%H:%M:%SZ',time.gmtime())}, open('manifest.json','w'), indent=2)" "$VN" "$VC"
+          CORE_SHA=$(cat parastoo-core.zip.sha256)
+          python3 -c "import json,sys,time; vn,vc,core_sha,run=sys.argv[1],int(sys.argv[2]),sys.argv[3],int(sys.argv[4]); sha=open('parastoo-mobile-debug.apk.sha256').read().strip(); json.dump({'versionName':vn,'versionCode':vc,'filename':'parastoo-mobile-debug.apk','sha256':sha,'created_at':time.strftime('%Y-%m-%dT%H:%M:%SZ',time.gmtime()),'core':{'schema':'parastoo-core/1','revision':run,'version_code':vc,'version_name':vn,'min_body_version_code':vc,'filename':'parastoo-core.zip','sha256':core_sha}}, open('manifest.json','w'), indent=2)" "$VN" "$VC" "$CORE_SHA" "${{ github.run_number }}"
           cat manifest.json
           gh release create "$TAG" \
             --repo "$GITHUB_REPOSITORY" \
             --title "Parastoo Mobile - build $TAG" \
-            --notes "Automated CI build of commit ${GITHUB_SHA:0:7}. Install: download the APK and sideload it — or use the in-app self-updater (card «به‌روزرسانی خودکار اپ»). The Parastoo panel Downloads page always serves the latest verified build." \
+            --notes "Automated CI build of commit ${GITHUB_SHA:0:7}. Architecture: fixed body APK (install once) + hot core (parastoo-core.zip) that the body updates silently over the air — no reinstall for core releases. The Parastoo panel Downloads page always serves the latest verified build." \
             "parastoo-mobile-debug.apk#parastoo-mobile-debug.apk" \
             "parastoo-mobile-debug.apk.sha256#parastoo-mobile-debug.apk.sha256" \
+            "parastoo-core.zip#parastoo-core.zip" \
+            "parastoo-core.zip.sha256#parastoo-core.zip.sha256" \
             "manifest.json#manifest.json"
 
       - name: به‌روزرسانی RELEASE_MANIFEST.json روی main (کانال دوم صحت)
