@@ -68,6 +68,12 @@ object AppCorePrefs {
     const val KEY_BOOT_PENDING_REV = "boot_pending_rev"
     const val KEY_BOOT_PENDING_SOURCE = "boot_pending_source"
     const val KEY_BOOT_PENDING_OK = "boot_pending_ok"
+
+    /** کد بدنه‌ای که آخرین بار قضاوت‌های شکست را ریست کرده — درس rev31:
+     *  باگِ خودِ بدنه (استخراج dex بدون setReadOnly) هستهٔ سالم را دو بار
+     *  «شکست خورده» قضاوت و کنار گذاشته بود؛ با ارتقای بدنه باید همهٔ
+     *  قضاوت‌های کهنه باطل شوند وگرنه هستهٔ بی‌گناه برای همیشه مسموم می‌ماند. */
+    const val KEY_RESET_BODY_CODE = "reset_body_code"
 }
 
 /**
@@ -84,7 +90,13 @@ object AppCoreIo {
         0L
     }
 
-    /** باز کردن zip سخت‌گیرانه — فقط دو عضو قراردادی؛ هر عضو دیگری = رد کل بسته */
+    /** باز کردن zip سخت‌گیرانه — فقط دو عضو قراردادی؛ هر عضو دیگری = رد کل بسته.
+     *  classes.dex پس از نوشتن read-only می‌شود — درس rev31 (علت واقعیِ «هسته دو
+     *  بار پیاپی شکست خورد» روی گوشی مالک): از اندروید ۱۴ با compat change
+     *  «ReadOnlyJavaDcl» مبتنی بر targetSdk (۳۴+)، ART لود dex قابل‌نوشتن را
+     *  با SecurityException «Writable dex file … is not allowed» رد می‌کند —
+     *  حتی در بیلد debug (AOSP: dalvik_system_DexFile.cc، سنجش با access(W_OK)
+     *  فقط روی خود فایل). استخراجِ بدون setReadOnly یعنی هسته هرگز لود نمی‌شود. */
     fun unzip(zipFile: File, outDir: File) {
         ZipFile(zipFile).use { zf ->
             val allowed = setOf(AppCoreManifest.MANIFEST_NAME, AppCoreManifest.DEX_NAME)
@@ -99,6 +111,9 @@ object AppCoreIo {
                 if (entry.isDirectory) return@forEach
                 val out = File(outDir, entry.name)
                 zf.getInputStream(entry).use { input -> out.outputStream().use { input.copyTo(it) } }
+                if (entry.name == AppCoreManifest.DEX_NAME && !out.setReadOnly()) {
+                    throw IllegalStateException("classes.dex پس از استخراج read-only نشد — اندروید ۱۴+ لودش را رد می‌کند")
+                }
             }
         }
     }

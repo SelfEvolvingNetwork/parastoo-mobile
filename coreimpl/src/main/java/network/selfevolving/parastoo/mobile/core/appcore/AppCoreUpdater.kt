@@ -144,6 +144,13 @@ object AppCoreUpdater {
                     tmp.copyRecursively(versionDir, overwrite = true)
                     tmp.deleteRecursively()
                 }
+                // گارد dex قابل‌نوشتن (درس rev31 — علت واقعی «Writable dex file
+                // … is not allowed» روی گوشی مالک): نسخهٔ نصب‌شده باید read-only
+                // باشد؛ مسیر کپی امن، پرمیشن read-only استخراج را نمی‌برد
+                val installedDex = File(versionDir, AppCoreManifest.DEX_NAME)
+                if (installedDex.canWrite() && !(installedDex.setReadOnly() && !installedDex.canWrite())) {
+                    throw IllegalStateException("classes.dex نصب‌شده read-only نشد — اندروید ۱۴+ لودش را رد می‌کند")
+                }
                 work.deleteRecursively()
                 dest.delete()
 

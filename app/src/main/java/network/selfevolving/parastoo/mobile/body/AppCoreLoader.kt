@@ -47,6 +47,13 @@ import org.json.JSONObject
  *  - گارد سلامتِ رندر (درس rev31): اگر پروسه در بووت قبلی پیش از اولین فریم
  *    موفقِ هسته مُرده بود (مثل NoClassDefFoundError در Compose)، بووتِ جدید
  *    آن را یک شکست می‌بُرد — کرش‌لوپ هم به فالبک می‌رسد
+ *  - گارد dex قابل‌نوشتن (درس rev31 — علت واقعیِ «هسته ۲ بار پیاپی شکست خورد»
+ *    روی گوشی مالک): از اندروید ۱۴ با compat change «ReadOnlyJavaDcl» مبتنی بر
+ *    targetSdk ۳۴+، لود dex با دسترسی نوشتن رد می‌شود حتی در بیلد debug —
+ *    classes.dex باید پیش از DexClassLoader read-only باشد؛ فایل‌های
+ *    استخراج‌شده در بوت‌های بدنهٔ کهنه هم درجا اصلاح می‌شوند
+ *  - با ارتقای بدنه، قضاوت‌های شکستِ نسخه‌های قبل ریست می‌شوند — باگِ خودِ
+ *    بدنه (مثل همین writable-dex) نباید هستهٔ بی‌گناه را برای همیشه مسموم کند
  *  - خطای واقعی هر شکست در prefs می‌ماند (KEY_LAST_FAIL_*) تا صفحهٔ صادقانهٔ
  *    بدنه فقط پیام مبهم «کنار گذاشته شد» نگوید، علت را هم بگوید
  *  - DexClassLoader با parent-first (والد = کلاس‌لودر بدنه)؛ هسته به بنیاد،
@@ -131,6 +138,23 @@ object AppCoreLoader {
         val appContext = context.applicationContext
         val bodyCode = AppCoreIo.bodyVersionCode(appContext)
         val prefs = appContext.getSharedPreferences(AppCorePrefs.FILE, Context.MODE_PRIVATE)
+        // بدنهٔ تازه = قضاوت‌های لودر قبلی باطل (درس rev31: باگِ خودِ بدنه —
+        // استخراج dex بدون setReadOnly — هستهٔ سالم را دو بار «شکست خورده»
+        // قضاوت و کنار گذاشته بود؛ با ارتقای بدنه باید از صفر بسنجد وگرنه
+        // هستهٔ بی‌گناه برای همیشه مسموم می‌ماند)
+        val lastJudgedBody = prefs.getLong(AppCorePrefs.KEY_RESET_BODY_CODE, 0L)
+        if (lastJudgedBody != bodyCode) {
+            prefs.edit().apply {
+                prefs.all.keys.filter { it.startsWith("fail_count_") }.forEach { remove(it) }
+                remove(AppCorePrefs.KEY_LAST_FAIL_REV)
+                remove(AppCorePrefs.KEY_LAST_FAIL_MSG)
+                remove(AppCorePrefs.KEY_BOOT_PENDING_REV)
+                remove(AppCorePrefs.KEY_BOOT_PENDING_SOURCE)
+                remove(AppCorePrefs.KEY_BOOT_PENDING_OK)
+                putLong(AppCorePrefs.KEY_RESET_BODY_CODE, bodyCode)
+            }.apply()
+            Log.i(TAG, "بدنهٔ $bodyCode تازه‌تر از آخرین داوری ($lastJudgedBody) است — شمارش شکست هسته‌ها ریست شد")
+        }
         settlePendingBoot(prefs)
 
         data class Candidate(val dir: File, val manifest: AppCoreManifest, val source: String, val tag: String)
@@ -173,6 +197,14 @@ object AppCoreLoader {
             try {
                 val dex = File(c.dir, AppCoreManifest.DEX_NAME)
                 if (!dex.isFile) throw IllegalStateException("classes.dex پیدا نشد")
+                // گارد dex قابل‌نوشتن (درس rev31 — علت واقعیِ شکست روی گوشی مالک):
+                // اندروید ۱۴+ با targetSdk ۳۴+ لود dex با دسترسی نوشتن را رد
+                // می‌کند (Writable dex file … is not allowed) — حتی بیلد debug.
+                // فایل‌های استخراج‌شده در بوت‌های بدنهٔ کهنه هم ممکن است
+                // قابل‌نوشتن مانده باشند؛ درجا read-only می‌شوند.
+                if (dex.canWrite() && !(dex.setReadOnly() && !dex.canWrite())) {
+                    throw IllegalStateException("classes.dex قابل‌نوشتن است و read-only شدنش ممکن نشد")
+                }
                 val actual = AppCoreIo.sha256File(dex)
                 if (!actual.equals(m.dexSha256, ignoreCase = true)) {
                     throw IllegalStateException("sha256 هسته با مانیفست بسته نمی‌خواند")
@@ -219,12 +251,20 @@ object AppCoreLoader {
     /**
      * باندل assets/core/core-bundle.zip → کش. کش با طول+هشِ بسته کلید می‌خورد
      * تا هر APK جدید یک بار باز شود؛ خروجی، دایرکتوریِ مانیفست+dex.
+     * کشِ موجود فقط وقتی معتبر است که dex آن با مانیفست داخلش بسنجد —
+     * اگر پروسه در میانهٔ استخراج مُرده باشد (dex ناقص/ناهش)، دوباره باز می‌شود
+     * تا یک فایل ناقص کاندیدا را برای همیشه مسموم نکند.
      */
     private fun bundledDir(context: Context): File? = try {
         val bytes = context.assets.open(AppCoreManifest.BUNDLE_ASSET).use { it.readBytes() }
         val key = "%x".format(bytes.size) + "-" + AppCoreIo.sha256Bytes(bytes).take(8)
         val dir = File(File(context.cacheDir, "bundled-core"), key)
-        if (File(dir, AppCoreManifest.DEX_NAME).isFile) {
+        val existingDex = File(dir, AppCoreManifest.DEX_NAME)
+        val cacheOk = existingDex.isFile && runCatching {
+            val m = parseManifestIn(dir)
+            m != null && AppCoreIo.sha256File(existingDex).equals(m.dexSha256, ignoreCase = true)
+        }.getOrDefault(false)
+        if (cacheOk) {
             dir
         } else {
             dir.deleteRecursively()
