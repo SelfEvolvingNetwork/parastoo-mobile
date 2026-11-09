@@ -21,6 +21,7 @@ import androidx.compose.material.icons.rounded.ErrorOutline
 import androidx.compose.material.icons.rounded.Key
 import androidx.compose.material.icons.rounded.Memory
 import androidx.compose.material.icons.rounded.Monitor
+import androidx.compose.material.icons.rounded.Password
 import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.icons.rounded.Schedule
 import androidx.compose.material.icons.rounded.Settings
@@ -45,6 +46,9 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextAlign
@@ -55,6 +59,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import network.selfevolving.parastoo.mobile.core.model.HostStatus
+import network.selfevolving.parastoo.mobile.core.model.SetupTokenInfo
 import network.selfevolving.parastoo.mobile.ui.components.ActionTile
 import network.selfevolving.parastoo.mobile.ui.components.BackTopBar
 import network.selfevolving.parastoo.mobile.ui.components.EmptyState
@@ -77,7 +82,25 @@ fun DashboardScreen(
     var loading by remember { mutableStateOf(true) }
     var pauseDialog by remember { mutableStateOf<Boolean?>(null) } // null بسته؛ true/false هدف
     var ghDialog by remember { mutableStateOf(false) }
+    var setupInfo by remember { mutableStateOf<SetupTokenInfo?>(null) }
+    var setupErr by remember { mutableStateOf<String?>(null) }
+    var setupLoading by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
+
+    /** توکن نصب سایت — هر بار تازه خوانده می‌شود؛ هیچ‌چیز روی گوشی نمی‌ماند */
+    fun loadSetupToken(api: network.selfevolving.parastoo.mobile.core.net.AccessAgentApi) {
+        scope.launch {
+            setupLoading = true
+            try {
+                setupInfo = withContext(Dispatchers.IO) { api.setupToken() }
+                setupErr = null
+            } catch (e: Exception) {
+                if (setupInfo == null) setupErr = e.message ?: e.javaClass.simpleName
+            } finally {
+                setupLoading = false
+            }
+        }
+    }
 
     fun refresh(api: network.selfevolving.parastoo.mobile.core.net.AccessAgentApi) {
         scope.launch {
@@ -90,11 +113,13 @@ fun DashboardScreen(
             } finally {
                 loading = false
             }
+            loadSetupToken(api)
         }
     }
 
     LaunchedEffect(session) {
         val api = session?.api ?: return@LaunchedEffect
+        loadSetupToken(api)
         while (true) {
             loading = true
             try {
@@ -277,6 +302,15 @@ fun DashboardScreen(
                             }
                         }
                     }
+
+                    // توکن نصب سایت — فرمان مالک (2026-11-09): کاربر برای دیدن
+                    // توکن نصب نباید به سرور مراجعه کند؛ از کانال پین‌شده می‌آید
+                    SetupTokenCard(
+                        info = setupInfo,
+                        loading = setupLoading,
+                        error = setupErr,
+                        onRetry = { s.api.let { loadSetupToken(it) } },
+                    )
 
                     ActionTile(
                         icon = Icons.Rounded.Monitor,
@@ -482,6 +516,125 @@ private fun GithubTokenDialog(
             TextButton(onClick = onDismiss, enabled = !busy) { Text("انصراف") }
         },
     )
+}
+
+/**
+ * کارت «توکن نصب سایت» — فرمان مالک (2026-11-09): کاربر برای دیدن توکن نصب
+ * نباید به سرور مراجعه کند. توکن از کانال TLS پین‌شدهٔ خود کاربر می‌آید،
+ * به‌صورت ماسک‌شده نمایش داده می‌شود، با یک لمس کپی و با یک لمس جادوگر پنل
+ * باز می‌شود. قرارداد راز: روی گوشی ذخیرهٔ پایدار نمی‌شود (فقط حافظهٔ فراخوانی).
+ */
+@Composable
+private fun SetupTokenCard(
+    info: SetupTokenInfo?,
+    loading: Boolean,
+    error: String?,
+    onRetry: () -> Unit,
+) {
+    var revealed by remember { mutableStateOf(false) }
+    var copied by remember { mutableStateOf(false) }
+    val clipboard = LocalClipboardManager.current
+    val uriHandler = LocalUriHandler.current
+    val scope = rememberCoroutineScope()
+    Card(Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(horizontal = 14.dp, vertical = 12.dp).fillMaxWidth()) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    Icons.Rounded.Password,
+                    contentDescription = null,
+                    modifier = Modifier.size(20.dp),
+                    tint = if (info?.hasToken == true) MaterialTheme.colorScheme.primary
+                    else MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Spacer(Modifier.width(12.dp))
+                Column(Modifier.weight(1f)) {
+                    Text("توکن نصب سایت", style = MaterialTheme.typography.titleSmall)
+                    Spacer(Modifier.height(2.dp))
+                    Text(
+                        when {
+                            info == null && loading -> "در حال خواندن از سرور…"
+                            info == null && error != null -> "خوانده نشد"
+                            info?.installed == false -> "پرستو هنوز نصب نشده"
+                            info?.hasToken == true -> "برای پایان جادوگر پنل — بدون ورود به سرور"
+                            else -> "در سرور ثبت نشده"
+                        },
+                        style = MaterialTheme.typography.bodySmall,
+                        color = if (info?.hasToken == true) MaterialTheme.colorScheme.primary
+                        else MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+            when {
+                info == null && error != null -> {
+                    Spacer(Modifier.height(6.dp))
+                    Text(
+                        error ?: "",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.error,
+                        fontFamily = FontFamily.Monospace,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    TextButton(onClick = onRetry) {
+                        Icon(Icons.Rounded.Refresh, null, Modifier.size(16.dp))
+                        Spacer(Modifier.width(6.dp))
+                        Text("تلاش دوباره")
+                    }
+                }
+                info != null && info.hasToken -> {
+                    Spacer(Modifier.height(8.dp))
+                    Text(
+                        if (revealed) info.setupToken else maskSetupToken(info.setupToken),
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontFamily = FontFamily.Monospace,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    Row {
+                        TextButton(onClick = { revealed = !revealed }) {
+                            Text(if (revealed) "پنهان کن" else "نمایش")
+                        }
+                        TextButton(onClick = {
+                            clipboard.setText(AnnotatedString(info.setupToken))
+                            copied = true
+                            scope.launch {
+                                delay(2500)
+                                copied = false
+                            }
+                        }) { Text(if (copied) "کپی شد" else "کپی") }
+                        if (info.setupUrl.isNotEmpty()) {
+                            TextButton(onClick = { uriHandler.openUri(info.setupUrl) }) {
+                                Text("رفتن به جادوگر")
+                            }
+                        }
+                    }
+                    Text(
+                        "این توکن فقط از کانال امن خودتان می‌آید و روی گوشی ذخیره نمی‌شود؛ به کسی نشانش ندهید.",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                info != null && !info.installed -> {
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        "پس از نصب پرستو از «مدیریت پرستو»، توکن همین‌جا نمایش داده می‌شود.",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+        }
+    }
+}
+
+/** ماسک امن نمایشی: الگوی آشنا cccc-••••-•••• حفظ می‌شود تا قابل تشخیص باشد */
+private fun maskSetupToken(token: String): String {
+    val parts = token.split("-")
+    return when {
+        parts.size >= 3 -> parts[0] + "-••••-••••"
+        token.length > 4 -> token.take(2) + "••••" + token.takeLast(2)
+        else -> "••••"
+    }
 }
 
 private fun formatUptime(s: Long): String {

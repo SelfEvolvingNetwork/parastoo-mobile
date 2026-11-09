@@ -4,6 +4,7 @@ import network.selfevolving.parastoo.mobile.core.model.AgentTokenMeta
 import network.selfevolving.parastoo.mobile.core.model.AuditEvent
 import network.selfevolving.parastoo.mobile.core.model.HostStatus
 import network.selfevolving.parastoo.mobile.core.model.LifecycleStatus
+import network.selfevolving.parastoo.mobile.core.model.SetupTokenInfo
 import network.selfevolving.parastoo.mobile.core.security.PinnedTrust
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
@@ -88,6 +89,15 @@ class AccessAgentApi(
     /** وضعیت چرخهٔ عمر پرستو: نصب‌بودن، عملیات جاری، تهٔ لاگ (پل v0.5) */
     fun parastooLifecycle(): LifecycleStatus =
         LifecycleStatus.from(get("/api/admin/parastoo/lifecycle-status"))
+
+    /**
+     * توکن نصب سایت برای پایان جادوگر پنل از همین گوشی (پل v0.5.3؛ فرمان مالک
+     * 2026-11-09: «توکن نصب سایت باید در پرستو موبایل نمایش داده شود») —
+     * کاربر دیگر برای دیدن این توکن به سرور نمی‌رود. فقط خواندن از کانال
+     * TLS پین‌شده؛ توکن در لاگ یا گاوصندوق ذخیره نمی‌شود و هر بار تازه خوانده می‌شود.
+     */
+    fun setupToken(): SetupTokenInfo =
+        SetupTokenInfo.from(get("/api/admin/parastoo/setup-token"))
 
     /**
      * ذخیرهٔ توکن گیت‌هاب مالک روی سرور (فرمان مالک، 2026-11-09): اپ توکن را

@@ -102,6 +102,7 @@ data class AuditEvent(
             action.endsWith("_fail") -> "اقدام ناموفق"
             action == "admin_audit_stream" -> "جریان زندهٔ رویدادها"
             action == "admin_parastoo_status" -> "وضعیت پرستو"
+            action == "admin_parastoo_setup_token" -> "خواندن توکن نصب (اپ شما)"
             action.startsWith("admin_parastoo_") -> {
                 val op = action.removePrefix("admin_parastoo_").substringBefore('_')
                 "پرستو: " + when (op) {
@@ -158,6 +159,32 @@ data class AuditEvent(
         } catch (e: Exception) {
             null
         }
+    }
+}
+
+/** توکن نصب سایت + زمینهٔ دامنه (پل v0.5.3) — برای پایان جادوگر پنل بدون مراجعه به سرور.
+ *  قرارداد راز: توکن فقط در حافظهٔ همین فراخوانی می‌ماند؛ روی گوشی ذخیرهٔ پایدار نمی‌شود. */
+data class SetupTokenInfo(
+    val installed: Boolean,
+    val hasToken: Boolean,
+    val setupToken: String,
+    val baseDomain: String,
+    val tlsEnabled: Boolean,
+    val panelUrl: String,
+    val setupUrl: String,
+    val parastooVersion: String,
+) {
+    companion object {
+        fun from(o: JSONObject): SetupTokenInfo = SetupTokenInfo(
+            installed = o.optBoolean("installed", false),
+            hasToken = o.optBoolean("has_token", false),
+            setupToken = o.optString("setup_token"),
+            baseDomain = o.optString("base_domain"),
+            tlsEnabled = o.optBoolean("tls_enabled", false),
+            panelUrl = o.optString("panel_url"),
+            setupUrl = o.optString("setup_url"),
+            parastooVersion = o.optString("parastoo_version"),
+        )
     }
 }
 
