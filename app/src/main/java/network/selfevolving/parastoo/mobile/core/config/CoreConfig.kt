@@ -83,7 +83,7 @@ class CoreConfig(
                 val endpoints = LinkedHashMap<String, String>()
                 (cfg.optJSONObject("endpoints") ?: JSONObject()).also { obj ->
                     if (obj.length() > MAX_ENDPOINTS) return null
-                    val keys: java.util.Iterator<String> = obj.keys()
+                    val keys = obj.keys()
                     while (keys.hasNext()) {
                         val key = keys.next()
                         val v = obj.optString(key)
@@ -98,7 +98,7 @@ class CoreConfig(
                 val strings = LinkedHashMap<String, String>()
                 (cfg.optJSONObject("strings") ?: JSONObject()).also { obj ->
                     if (obj.length() > MAX_STRINGS) return null
-                    val keys: java.util.Iterator<String> = obj.keys()
+                    val keys = obj.keys()
                     while (keys.hasNext()) {
                         val key = keys.next()
                         if (key !in ALLOWED_STRING_KEYS) return null
@@ -111,7 +111,7 @@ class CoreConfig(
                 val flags = LinkedHashMap<String, Boolean>()
                 (cfg.optJSONObject("flags") ?: JSONObject()).also { obj ->
                     if (obj.length() > MAX_FLAGS) return null
-                    val keys: java.util.Iterator<String> = obj.keys()
+                    val keys = obj.keys()
                     while (keys.hasNext()) {
                         val key = keys.next()
                         val v = obj.opt(key)
