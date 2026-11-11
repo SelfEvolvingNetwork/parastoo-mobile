@@ -109,6 +109,14 @@ class AccessAgentApi(
     fun revokeAgentSessions(): JSONObject =
         post(p("revoke_agent_sessions", "/api/admin/revoke-agent-sessions"), null)
 
+    /**
+     * دعوت‌نامهٔ بی‌رمز جفت‌سازی (پل v0.7.2؛ فرمان مالک ۲۰۲۶-۱۱-۱۲: متن دعوت
+     * باید در پرستو موبایل قابل کپی باشد). همین متنِ «sudo access-agent invite»
+     * بدون SSH؛ فقط URL و هش گواهی — لورفتنش بی‌خطر است و اعتماد با تأیید
+     * انسانیِ رمز ۵ رقمی ساخته می‌شود، نه با انتقال راز.
+     */
+    fun agentInvite(): String = get(p("agent_invite", "/api/admin/invite")).optString("invite")
+
     /** وضعیت چرخهٔ عمر پرستو: نصب‌بودن، عملیات جاری، تهٔ لاگ (پل v0.5) */
     fun parastooLifecycle(): LifecycleStatus =
         LifecycleStatus.from(get(p("parastoo_lifecycle_status", "/api/admin/parastoo/lifecycle-status")))

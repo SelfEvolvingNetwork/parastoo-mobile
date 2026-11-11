@@ -202,6 +202,13 @@ data class LifecycleStatus(
     val okLast: Boolean?,
     val durationS: Long?,
     val logTail: List<String>,
+    // پل v0.7.2 — سلامت استک (فرمان مالک پس از اولین ری‌استارت واقعی سرور:
+    // «آیا پرستو بالا آمده؟» باید از خود اپ جواب داده شود). قدیمی‌های بدون
+    // این فیلد، مقادیر خالی می‌گیرند و UI همان کار قبلی را می‌کند.
+    val stackChecked: Boolean = false,
+    val stackCoreHealthz: Boolean = false,
+    val stackContainers: List<Pair<String, String>> = emptyList(),
+    val stackProjectContainersUp: Int = 0,
 ) {
     val logText: String get() = logTail.joinToString("\n")
 
@@ -219,6 +226,18 @@ data class LifecycleStatus(
                 val arr = o.optJSONArray("log_tail") ?: return@buildList
                 for (i in 0 until arr.length()) add(arr.optString(i))
             },
+            stackChecked = o.optJSONObject("stack")?.optBoolean("checked", false) ?: false,
+            stackCoreHealthz = o.optJSONObject("stack")?.optBoolean("core_healthz", false) ?: false,
+            stackContainers = buildList {
+                val st = o.optJSONObject("stack") ?: return@buildList
+                val cont = st.optJSONObject("containers") ?: return@buildList
+                val keys = cont.keys()
+                while (keys.hasNext()) {
+                    val k = keys.next() as String
+                    add(k to cont.optString(k))
+                }
+            },
+            stackProjectContainersUp = o.optJSONObject("stack")?.optInt("project_containers_up", 0) ?: 0,
         )
     }
 }

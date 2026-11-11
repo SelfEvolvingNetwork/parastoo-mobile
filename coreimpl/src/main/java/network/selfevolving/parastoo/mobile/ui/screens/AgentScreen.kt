@@ -75,6 +75,8 @@ fun AgentScreen(serverId: Long, onBack: () -> Unit) {
     var showRotateDialog by remember { mutableStateOf(false) }
     var showRevokeDialog by remember { mutableStateOf(false) }
     var handoffBlock by remember { mutableStateOf<String?>(null) }
+    var inviteBlock by remember { mutableStateOf<String?>(null) }
+    var inviteLoading by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     var pairCode by remember { mutableStateOf("") }
     var approving by remember { mutableStateOf(false) }
@@ -87,6 +89,21 @@ fun AgentScreen(serverId: Long, onBack: () -> Unit) {
                 meta = withContext(Dispatchers.IO) { api.agentTokenMeta() }
             } catch (e: Exception) {
                 error = e.message
+            }
+        }
+    }
+
+    fun loadInvite() {
+        val api = session?.api ?: return
+        inviteLoading = true
+        error = null
+        scope.launch {
+            try {
+                inviteBlock = withContext(Dispatchers.IO) { api.agentInvite() }
+            } catch (e: Exception) {
+                error = "دریافت دعوت‌نامه ناموفق: ${e.message}"
+            } finally {
+                inviteLoading = false
             }
         }
     }
@@ -213,12 +230,47 @@ fun AgentScreen(serverId: Long, onBack: () -> Unit) {
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
 
+            // دعوت‌نامهٔ بی‌رمز (پل v0.7.2) — راه پیشنهادی اتصال عامل: مالک این
+            // متن را کپی می‌کند و به عامل می‌دهد؛ هیچ توکن یا رمزی در آن نیست و
+            // لورفتنش بی‌خطر است. اعتماد با تأیید انسانیِ رمز ۵ رقمی ساخته می‌شود.
+            Card(Modifier.fillMaxWidth()) {
+                Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text("دعوت‌نامهٔ عامل (بدون توکن) — راه پیشنهادی", style = MaterialTheme.typography.titleMedium)
+                    Text(
+                        "این متن را عیناً در چت عامل هوش مصنوعی خود بچسبانید. " +
+                            "هیچ توکن یا رمزی در آن نیست — لورفتنش بی‌خطر است. عامل خودش یک رمز ۵ رقمی " +
+                            "می‌سازد و در چت به شما نشان می‌دهد؛ همان را در بخش «تأیید عامل» پایین وارد کنید.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    if (inviteBlock == null) {
+                        Button(onClick = { loadInvite() }, enabled = !inviteLoading) {
+                            Text(if (inviteLoading) "در حال دریافت…" else "نمایش متن دعوت‌نامه")
+                        }
+                    } else {
+                        CodeBlock(inviteBlock!!)
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Button(onClick = {
+                                clipboard.setText(AnnotatedString(inviteBlock!!))
+                                Toast.makeText(context, "دعوت‌نامه کپی شد", Toast.LENGTH_SHORT).show()
+                            }) {
+                                Icon(Icons.Rounded.ContentCopy, null, Modifier.size(16.dp))
+                                Spacer(Modifier.width(6.dp))
+                                Text("کپی دعوت‌نامه")
+                            }
+                            OutlinedButton(onClick = { loadInvite() }) { Text("دریافت دوباره") }
+                        }
+                    }
+                }
+            }
+
             handoffBlock?.let { block ->
                 Card(Modifier.fillMaxWidth()) {
                     Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                        Text("بلوک تحویل آمادهٔ کپی", style = MaterialTheme.typography.titleMedium)
+                        Text("بلوک تحویل آمادهٔ کپی (مسیر قدیمی — توکن‌دار)", style = MaterialTheme.typography.titleMedium)
                         Text(
-                            "این متن را عیناً در چت عامل هوش مصنوعی خود بچسبانید. توکن فقط همین یک بار نمایش داده می‌شود.",
+                            "این بلوک توکن خام عامل را دارد و فقط باید در کانال امن خودتان استفاده شود؛ " +
+                            "راه پیشنهادی، دعوت‌نامهٔ بی‌رمز بالای همین صفحه است.",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.tertiary,
                         )

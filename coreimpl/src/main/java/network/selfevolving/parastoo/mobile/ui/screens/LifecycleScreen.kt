@@ -145,6 +145,36 @@ fun LifecycleScreen(serverId: Long, onBack: () -> Unit) {
                         }
                     }
 
+                    // ---------- سلامت استک (پل v0.7.2 — «بعد از ری‌استارت بالا آمده؟») ----------
+                    if (s.stackChecked) {
+                        Card(Modifier.fillMaxWidth()) {
+                            Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                Text("سلامت استک پرستو", style = MaterialTheme.typography.titleMedium)
+                                Text(
+                                    if (s.stackCoreHealthz) "هستهٔ پرستو پاسخ سلامت داده — استک بالا است."
+                                    else "هستهٔ پرستو هنوز پاسخ سلامت نمی‌دهد؛ چند لحظه بعد دوباره نگاه کنید.",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = if (s.stackCoreHealthz) MaterialTheme.colorScheme.primary
+                                    else MaterialTheme.colorScheme.error,
+                                )
+                                s.stackContainers.sortedBy { it.first }.forEach { (name, status) ->
+                                    DetailRow(
+                                        name.removePrefix("parastoo-"),
+                                        status,
+                                        mono = true,
+                                    )
+                                }
+                                if (s.stackProjectContainersUp > 0) {
+                                    Text(
+                                        "${s.stackProjectContainersUp} کانتینر پروژهٔ کاربران هم در حال اجراست",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    )
+                                }
+                            }
+                        }
+                    }
+
                     // ---------- نتیجهٔ آخرین عملیات ----------
                     if (!s.busy && s.exitCode != null) {
                         val ok = s.okLast == true
