@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.ContentCopy
@@ -46,6 +47,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -74,6 +76,9 @@ fun AgentScreen(serverId: Long, onBack: () -> Unit) {
     var showRevokeDialog by remember { mutableStateOf(false) }
     var handoffBlock by remember { mutableStateOf<String?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
+    var pairCode by remember { mutableStateOf("") }
+    var approving by remember { mutableStateOf(false) }
+    var pairingResult by remember { mutableStateOf<String?>(null) }
 
     fun refreshMeta() {
         val api = session?.api ?: return
@@ -86,6 +91,40 @@ fun AgentScreen(serverId: Long, onBack: () -> Unit) {
         }
     }
     LaunchedEffect(session) { refreshMeta() }
+
+    fun approvePairing() {
+        val api = session?.api ?: return
+        approving = true
+        pairingResult = null
+        scope.launch {
+            try {
+                withContext(Dispatchers.IO) { api.approveAgentPairing(pairCode) }
+                pairingResult = "تأیید شد — عامل تا ۳۰ دقیقه فرصت دارد توکن موقتش را بردارد."
+                pairCode = ""
+                Toast.makeText(context, "عامل تأیید شد", Toast.LENGTH_SHORT).show()
+            } catch (e: Exception) {
+                pairingResult = "تأیید نشد: ${e.message}"
+            } finally {
+                approving = false
+            }
+        }
+    }
+
+    fun revokeAgentSessions() {
+        val api = session?.api ?: return
+        scope.launch {
+            try {
+                val res = withContext(Dispatchers.IO) { api.revokeAgentSessions() }
+                Toast.makeText(
+                    context,
+                    "نشست‌های موقت باطل شد (${res.optInt("removed")})",
+                    Toast.LENGTH_SHORT,
+                ).show()
+            } catch (e: Exception) {
+                error = e.message
+            }
+        }
+    }
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
@@ -199,6 +238,44 @@ fun AgentScreen(serverId: Long, onBack: () -> Unit) {
                 }
             }
 
+            // تأیید عامل هوش مصنوعی — جفت‌سازی با رمز عامل‌ساخته (پل v0.7.1)
+            Card(Modifier.fillMaxWidth()) {
+                Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text("تأیید عامل هوش مصنوعی", style = MaterialTheme.typography.titleMedium)
+                    Text(
+                        "عامل شما خودش یک رمز ۵ رقمی ساخته و در چت نشان داده است؛ " +
+                            "همان رمز را این‌جا وارد کنید تا پل بداند از طرف شما آمده است. " +
+                            "هیچ رازی از چت عبور نمی‌کند — مهلت تأیید: ۲ دقیقه از ساخت رمز.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        OutlinedTextField(
+                            value = pairCode,
+                            onValueChange = { pairCode = it.filter(Char::isDigit).take(5) },
+                            label = { Text("رمز ۵ رقمی عامل") },
+                            singleLine = true,
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                            modifier = Modifier.width(170.dp),
+                        )
+                        Button(
+                            onClick = { approvePairing() },
+                            enabled = pairCode.length == 5 && !approving,
+                        ) { Text("تأیید") }
+                    }
+                    pairingResult?.let {
+                        Text(
+                            it,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.primary,
+                        )
+                    }
+                }
+            }
+
             error?.let {
                 Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
             }
@@ -228,6 +305,9 @@ fun AgentScreen(serverId: Long, onBack: () -> Unit) {
                     )
                     OutlinedButton(onClick = { showRevokeDialog = true }) {
                         Text("باطل کردن کامل دسترسی عامل", color = MaterialTheme.colorScheme.error)
+                    }
+                    OutlinedButton(onClick = { revokeAgentSessions() }) {
+                        Text("باطل کردن نشست‌های موقت عامل‌ها", color = MaterialTheme.colorScheme.error)
                     }
                 }
             }

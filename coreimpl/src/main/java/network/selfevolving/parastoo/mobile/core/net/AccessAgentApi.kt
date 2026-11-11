@@ -95,6 +95,20 @@ class AccessAgentApi(
     /** بلوک تحویل آمادهٔ کپی برای عامل هوش مصنوعی */
     fun handoff(): String = get(p("handoff", "/api/admin/handoff")).optString("block")
 
+    /**
+     * تأیید رمز جفت‌سازی عامل (پل v0.7.1؛ فرمان مالک 2026-11-12): عامل خودش
+     * رمز ۵ رقمی ساخته و در چت نشان داده است؛ مالک همین‌جا تأییدش می‌کند تا
+     * پل بداند از طرف اوست. معادل SSH: sudo access-agent approve <code>.
+     * مهلت تأیید از لحظهٔ ادعا ۲ دقیقه است؛ پس از تأیید، عامل تا ۳۰ دقیقه
+     * فرصت برداشت توکن موقتش را دارد. خودِ رمز هرگز لاگ نمی‌شود.
+     */
+    fun approveAgentPairing(code: String): JSONObject =
+        post(p("agent_approve", "/api/admin/agent-approve"), JSONObject().put("code", code))
+
+    /** کلید اضطراری مالک (پل v0.7.1): ابطال همهٔ نشست‌های موقت جفت‌سازی عامل‌ها */
+    fun revokeAgentSessions(): JSONObject =
+        post(p("revoke_agent_sessions", "/api/admin/revoke-agent-sessions"), null)
+
     /** وضعیت چرخهٔ عمر پرستو: نصب‌بودن، عملیات جاری، تهٔ لاگ (پل v0.5) */
     fun parastooLifecycle(): LifecycleStatus =
         LifecycleStatus.from(get(p("parastoo_lifecycle_status", "/api/admin/parastoo/lifecycle-status")))
