@@ -1,16 +1,16 @@
 {
-  "versionName": "0.5.4",
-  "versionCode": 23,
+  "versionName": "0.5.5",
+  "versionCode": 24,
   "filename": "parastoo-mobile-debug.apk",
-  "sha256": "58aeb236b2cfc0a84c9ee0db9a9690e50e18ab083eadbaa2024efe4a87781103",
-  "created_at": "2026-11-12T03:04:30Z",
+  "sha256": "c69c685106fc8c52a34a78be8c56a3106809a9d5166852ac2169422dd76b56df",
+  "created_at": "2026-11-12T05:04:37Z",
   "core": {
     "schema": "parastoo-core/1",
-    "revision": 36,
-    "version_code": 23,
-    "version_name": "0.5.4",
-    "min_body_version_code": 23,
+    "revision": 37,
+    "version_code": 24,
+    "version_name": "0.5.5",
+    "min_body_version_code": 24,
     "filename": "parastoo-core.zip",
-    "sha256": "68bc9ff061a8c9217d2c6f0a69a0f436e09c405e6e25f42a3700c87c5f271827"
+    "sha256": "8e641af57e54983f9b9b768caa1264a250902df51dee045614568b3403e732ad"
   }
 }
