@@ -76,6 +76,7 @@ fun AgentScreen(serverId: Long, onBack: () -> Unit) {
     var showRevokeDialog by remember { mutableStateOf(false) }
     var handoffBlock by remember { mutableStateOf<String?>(null) }
     var inviteBlock by remember { mutableStateOf<String?>(null) }
+    var inviteFor by remember { mutableStateOf("") }
     var inviteLoading by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     var pairCode by remember { mutableStateOf("") }
@@ -99,7 +100,7 @@ fun AgentScreen(serverId: Long, onBack: () -> Unit) {
         error = null
         scope.launch {
             try {
-                inviteBlock = withContext(Dispatchers.IO) { api.agentInvite() }
+                inviteBlock = withContext(Dispatchers.IO) { api.agentInvite(inviteFor) }
             } catch (e: Exception) {
                 error = "دریافت دعوت‌نامه ناموفق: ${e.message}"
             } finally {
@@ -115,8 +116,12 @@ fun AgentScreen(serverId: Long, onBack: () -> Unit) {
         pairingResult = null
         scope.launch {
             try {
-                withContext(Dispatchers.IO) { api.approveAgentPairing(pairCode) }
-                pairingResult = "تأیید شد — عامل تا ۳۰ دقیقه فرصت دارد توکن موقتش را بردارد."
+                val res = withContext(Dispatchers.IO) { api.approveAgentPairing(pairCode) }
+                val who = res.optString("invited_by", "")
+                pairingResult = if (who.isBlank())
+                    "تأیید شد — عامل تا ۳۰ دقیقه فرصت دارد توکن موقتش را بردارد."
+                else
+                    "تأیید شد — دعوت کاربر «$who»؛ عامل تا ۳۰ دقیقه فرصت برداشت توکنش را دارد."
                 pairCode = ""
                 Toast.makeText(context, "عامل تأیید شد", Toast.LENGTH_SHORT).show()
             } catch (e: Exception) {
@@ -230,23 +235,39 @@ fun AgentScreen(serverId: Long, onBack: () -> Unit) {
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
 
-            // دعوت‌نامهٔ بی‌رمز (پل v0.7.2) — راه پیشنهادی اتصال عامل: مالک این
-            // متن را کپی می‌کند و به عامل می‌دهد؛ هیچ توکن یا رمزی در آن نیست و
-            // لورفتنش بی‌خطر است. اعتماد با تأیید انسانیِ رمز ۵ رقمی ساخته می‌شود.
+            // دعوت‌نامهٔ بی‌رمز کاربر-مند (پل v0.8) — راه پیشنهادی اتصال عامل: مالک
+            // نام کاربر را می‌نویسد و متن را کپی می‌کند؛ هیچ توکن یا رمزی در آن نیست
+            // و لورفتنش بی‌خطر است. سرور خودش رمز ۵ رقمی را می‌سازد؛ عامل فقط چاپش
+            // می‌کند و کاربر از مسیر امن همین اپ برای مالک می‌فرستد.
             Card(Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Text("دعوت‌نامهٔ عامل (بدون توکن) — راه پیشنهادی", style = MaterialTheme.typography.titleMedium)
                     Text(
                         "این متن را عیناً در چت عامل هوش مصنوعی خود بچسبانید. " +
-                            "هیچ توکن یا رمزی در آن نیست — لورفتنش بی‌خطر است. عامل خودش یک رمز ۵ رقمی " +
-                            "می‌سازد و در چت به شما نشان می‌دهد؛ همان را در بخش «تأیید عامل» پایین وارد کنید.",
+                            "هیچ توکن یا رمزی در آن نیست — لورفتنش بی‌خطر است. سرور خودش رمز ۵ رقمی " +
+                            "یک‌بارمصرف را می‌سازد و عامل فقط آن را برای کاربر چاپ می‌کند " +
+                            "(هیچ محاسبه‌ای روی عامل نیست)؛ کاربر رمز را از مسیر امن همین اپ " +
+                            "برای شما می‌فرستد و شما در بخش «تأیید عامل» پایین واردش می‌کنید.",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                     if (inviteBlock == null) {
+                        OutlinedTextField(
+                            value = inviteFor,
+                            onValueChange = { inviteFor = it.take(40) },
+                            label = { Text("به نام کدام کاربر؟ (اختیاری)") },
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth(),
+                        )
                         Button(onClick = { loadInvite() }, enabled = !inviteLoading) {
-                            Text(if (inviteLoading) "در حال دریافت…" else "نمایش متن دعوت‌نامه")
+                            Text(if (inviteLoading) "در حال دریافت…" else "ساخت دعوت‌نامه")
                         }
+                        Text(
+                            "دعوت به نام کاربر صادر می‌شود (یک دعوت = یک عامل؛ ۲۴ ساعت اعتبار). " +
+                                "اگر نامی ننویسید، دعوت مستقیماً به نام خودتان است.",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
                     } else {
                         CodeBlock(inviteBlock!!)
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -290,14 +311,14 @@ fun AgentScreen(serverId: Long, onBack: () -> Unit) {
                 }
             }
 
-            // تأیید عامل هوش مصنوعی — جفت‌سازی با رمز عامل‌ساخته (پل v0.7.1)
+            // تأیید عامل هوش مصنوعی — جفت‌سازی با رمز سرورساخته (پل v0.8)
             Card(Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Text("تأیید عامل هوش مصنوعی", style = MaterialTheme.typography.titleMedium)
                     Text(
-                        "عامل شما خودش یک رمز ۵ رقمی ساخته و در چت نشان داده است؛ " +
-                            "همان رمز را این‌جا وارد کنید تا پل بداند از طرف شما آمده است. " +
-                            "هیچ رازی از چت عبور نمی‌کند — مهلت تأیید: ۲ دقیقه از ساخت رمز.",
+                        "رمز ۵ رقمی که سرور ساخته و عامل برای کاربر چاپ کرده و او از مسیر " +
+                            "امن همین اپ برای شما فرستاده را این‌جا وارد کنید — پاسخ نشان می‌دهد " +
+                            "رمز پای دعوت کدام کاربر بوده است. مهلت تأیید: ۱۵ دقیقه از صدور رمز.",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -308,10 +329,10 @@ fun AgentScreen(serverId: Long, onBack: () -> Unit) {
                         OutlinedTextField(
                             value = pairCode,
                             onValueChange = { pairCode = it.filter(Char::isDigit).take(5) },
-                            label = { Text("رمز ۵ رقمی عامل") },
+                            label = { Text("رمز ۵ رقمی که کاربر فرستاده") },
                             singleLine = true,
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                            modifier = Modifier.width(170.dp),
+                            modifier = Modifier.width(190.dp),
                         )
                         Button(
                             onClick = { approvePairing() },

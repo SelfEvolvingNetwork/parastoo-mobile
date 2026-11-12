@@ -96,10 +96,13 @@ class AccessAgentApi(
     fun handoff(): String = get(p("handoff", "/api/admin/handoff")).optString("block")
 
     /**
-     * تأیید رمز جفت‌سازی عامل (پل v0.7.1؛ فرمان مالک 2026-11-12): عامل خودش
-     * رمز ۵ رقمی ساخته و در چت نشان داده است؛ مالک همین‌جا تأییدش می‌کند تا
-     * پل بداند از طرف اوست. معادل SSH: sudo access-agent approve <code>.
-     * مهلت تأیید از لحظهٔ ادعا ۲ دقیقه است؛ پس از تأیید، عامل تا ۳۰ دقیقه
+     * تأیید رمز جفت‌سازی عامل (پل v0.7.1→v0.8؛ فرمان مالک 2026-11-12): رمز ۵ رقمی
+     * را دیگر خودِ عامل نمی‌سازد — سرور آن را در پاسخ GET آدرس دعوت می‌سازد و
+     * عامل فقط برای کاربر چاپش می‌کند؛ کاربر آن را از مسیر امن همین اپ برای
+     * مالک می‌فرستد و مالک همین‌جا تأییدش می‌کند تا پل بداند از طرف کدام
+     * کاربر است. معادل SSH: sudo access-agent approve <code>.
+     * پاسخ v0.8 برچسب invited_by (کاربرِ دعوت‌کننده) را هم می‌دهد.
+     * مهلت تأیید از صدور رمز ۱۵ دقیقه است؛ پس از تأیید، عامل تا ۳۰ دقیقه
      * فرصت برداشت توکن موقتش را دارد. خودِ رمز هرگز لاگ نمی‌شود.
      */
     fun approveAgentPairing(code: String): JSONObject =
@@ -110,12 +113,19 @@ class AccessAgentApi(
         post(p("revoke_agent_sessions", "/api/admin/revoke-agent-sessions"), null)
 
     /**
-     * دعوت‌نامهٔ بی‌رمز جفت‌سازی (پل v0.7.2؛ فرمان مالک ۲۰۲۶-۱۱-۱۲: متن دعوت
-     * باید در پرستو موبایل قابل کپی باشد). همین متنِ «sudo access-agent invite»
-     * بدون SSH؛ فقط URL و هش گواهی — لورفتنش بی‌خطر است و اعتماد با تأیید
-     * انسانیِ رمز ۵ رقمی ساخته می‌شود، نه با انتقال راز.
+     * دعوت‌نامهٔ بی‌رمز کاربر-مند (پل v0.7.2→v0.8؛ فرمان مالک ۲۰۲۶-۱۱-۱۲):
+     * همان متنِ «sudo access-agent invite [for-user]» بدون SSH. دعوت به نام
+     * کاربر داده‌شده صادر می‌شود و URL آن شناسهٔ دعوت یک‌بارمصرف را دارد؛
+     * سرور در پاسخ GET عامل، رمز ۵ رقمی را خودش می‌سازد (عامل فقط چاپ می‌کند).
+     * فقط URL و هش گواهی — لورفتنش بی‌خطر است و اعتماد با تأیید انسانی ساخته
+     * می‌شود، نه با انتقال راز.
      */
-    fun agentInvite(): String = get(p("agent_invite", "/api/admin/invite")).optString("invite")
+    fun agentInvite(forUser: String = ""): String {
+        val base = p("agent_invite", "/api/admin/invite")
+        val path = if (forUser.isBlank()) base
+        else base + "?for=" + java.net.URLEncoder.encode(forUser.trim(), "UTF-8")
+        return get(path).optString("invite")
+    }
 
     /** وضعیت چرخهٔ عمر پرستو: نصب‌بودن، عملیات جاری، تهٔ لاگ (پل v0.5) */
     fun parastooLifecycle(): LifecycleStatus =
