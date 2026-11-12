@@ -69,6 +69,7 @@ import network.selfevolving.parastoo.mobile.core.data.Db
 import network.selfevolving.parastoo.mobile.core.data.ServerProfileEntity
 import network.selfevolving.parastoo.mobile.core.net.AccessAgentApi
 import network.selfevolving.parastoo.mobile.core.security.SecretVault
+import network.selfevolving.parastoo.mobile.core.session.SessionRecovery
 import network.selfevolving.parastoo.mobile.ui.theme.TerminalBg
 import network.selfevolving.parastoo.mobile.ui.theme.TerminalText
 
@@ -86,9 +87,23 @@ fun rememberSession(serverId: Long): ServerSession? {
     LaunchedEffect(serverId) {
         val p = withContext(Dispatchers.IO) { Db.get().serverDao().byId(serverId) }
             ?: return@LaunchedEffect
-        val token = SecretVault.getAdminToken(context, p.id)
+        var token = SecretVault.getAdminToken(context, p.id)
+        var profile = p
+        // v0.5.6 — فرمان مالک ۲۰۲۶-۱۱-۱۲ («الگوی مخرب آپدیت»: کاربر را درگیر
+        // «رمز بازی» نکن): توکنِ گم‌شده/کهنگهٔ گاوصندوق به‌جای بن‌بستِ «حذف و
+        // افزودن دوباره»، درون‌سیستمی بازیابی می‌شود — با رمز SSHِ همان
+        // گاوصندوق و کلید میزبانِ پین‌شده؛ هیچ‌چیز از مالک پرسیده نمی‌شود.
+        if (token.isEmpty()) {
+            val r = withContext(Dispatchers.IO) {
+                SessionRecovery.recover(context, p)
+            }
+            if (r != null) {
+                token = r.adminToken
+                profile = r.profile
+            }
+        }
         if (token.isNotEmpty()) {
-            session = ServerSession(p, AccessAgentApi(p.url, p.certSha256, token), token)
+            session = ServerSession(profile, AccessAgentApi(profile.url, profile.certSha256, token), token)
         }
     }
     return session

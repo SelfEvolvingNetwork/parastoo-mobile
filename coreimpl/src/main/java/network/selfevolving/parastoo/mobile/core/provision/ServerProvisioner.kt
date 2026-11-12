@@ -121,7 +121,12 @@ class ServerProvisioner {
         onLog("بستهٔ پل v${release.version} آماده است — ${bundleBytes.size} بایت (${release.source})")
 
         val adminToken = newToken("adm_")
-        val agentToken = newToken("aa_")
+        // v0.5.6 — فرمان مالک ۲۰۲۶-۱۱-۱۲ («الگوی مخربِ آپدیت»: کاربر را درگیر
+        // رمز/توکن بازی نکن): توکنِ عاملِ موجود روی سرور (اگر پل از قبل نصب است)
+        // بعد از اتصال SSH خوانده و «نگه داشته» می‌شود — قلمرو عامل بی‌درز زنده
+        // می‌ماند و ارتباط عامل هوشمند با پل قطع نمی‌شود؛ ادمین همچنان توکنِ
+        // تازهٔ این گوشی می‌گیرد (مالکیت). فقط سرورِ بدون پل، توکن عامل تازه می‌گیرد.
+        var agentToken = newToken("aa_")
 
         val tmpDir = File(context.cacheDir, "provision").apply { mkdirs() }
         val localBundle = File(tmpDir, "access-agent-bundle.tar.gz")
@@ -132,15 +137,6 @@ class ServerProvisioner {
         val remoteWork = "/tmp/parastoo-provision-$stamp"
 
         localBundle.writeBytes(bundleBytes)
-        // «رمز روت = مالکیت»: همیشه توکن‌های تازهٔ این گوشی جایگزین می‌شوند — بدون هیچ سؤالی
-        localEnv.writeText(
-            buildString {
-                appendLine("ACCESS_AGENT_PORT=$agentPort")
-                appendLine("ACCESS_AGENT_ADMIN_TOKEN=$adminToken")
-                appendLine("ACCESS_AGENT_AGENT_TOKEN=$agentToken")
-                appendLine("ACCESS_AGENT_RESET_TOKENS=1")
-            }
-        )
         localEnv.deleteOnExit(); localBundle.deleteOnExit()
 
         // اسکریپت اجرا روی سرور — هیچ رازی داخلش نیست (رازها در فایل env با chmod 600)
@@ -192,6 +188,37 @@ class ServerProvisioner {
             onPhase("احراز هویت با رمز سرور")
             ssh.authPassword("root", password)
             onLog("ورود موفق به‌عنوان root")
+
+            // ---------- ۲ب) پیوستگی قلمرو عامل (v0.5.6 — فرمان مالک ۲۰۲۶-۱۱-۱۲) ----------
+            // «الگوی مخربِ آپدیت» حذف شد: فراهم‌سازی مجدد دیگر توکنِ عاملِ زنده را
+            // نمی‌کُشد. اگر پل از قبل روی سرور نصب است، توکن عاملِ فعلی‌اش را می‌خوانیم
+            // و همان را نگه می‌داریم (تغییرش لازم نبود — درون‌سیستمی)؛ ارتباط عامل
+            // هوشمند با پل قطع نمی‌شود. سرورِ بدون پل، توکن تازه می‌گیرد.
+            runCatching {
+                ssh.startSession().use { s ->
+                    val c = s.exec("cat /etc/access-agent/secrets/agent-token 2>/dev/null || true")
+                    val text = String(c.inputStream.readBytes(), Charsets.UTF_8).trim()
+                    c.join()
+                    if (text.startsWith("aa_") && text.length >= 10) {
+                        agentToken = text
+                        onLog("توکن عاملِ موجود نگه داشته شد — قلمرو عامل بی‌درز ادامه می‌یابد")
+                    }
+                }
+            }.onFailure {
+                onLog("خواندن توکن عامل موجود ممکن نشد (سرور بدون پل؟) — توکن تازه ساخته می‌شود")
+            }
+
+            // «رمز روت = مالکیت» برای قلمرو ادمین: توکن ادمینِ تازهٔ این گوشی
+            // جایگزین می‌شود؛ فایل env همین‌جا نوشته می‌شود (توکن عامل شاید از
+            // سرور خوانده و نگه داشته شده باشد). بدون هیچ سؤالی از کاربر.
+            localEnv.writeText(
+                buildString {
+                    appendLine("ACCESS_AGENT_PORT=$agentPort")
+                    appendLine("ACCESS_AGENT_ADMIN_TOKEN=$adminToken")
+                    appendLine("ACCESS_AGENT_AGENT_TOKEN=$agentToken")
+                    appendLine("ACCESS_AGENT_RESET_TOKENS=1")
+                }
+            )
 
             onPhase("بالا بردن بستهٔ نصب (SFTP)")
             ssh.newSFTPClient().use { sftp ->

@@ -56,9 +56,11 @@ import kotlinx.coroutines.withContext
 import network.selfevolving.parastoo.mobile.core.config.CoreConfigStore
 import network.selfevolving.parastoo.mobile.core.model.HostStatus
 import network.selfevolving.parastoo.mobile.core.provision.AutoUpdater
+import network.selfevolving.parastoo.mobile.core.session.SessionRecovery
 import network.selfevolving.parastoo.mobile.ui.components.ActionTile
 import network.selfevolving.parastoo.mobile.ui.components.BackTopBar
 import network.selfevolving.parastoo.mobile.ui.components.EmptyState
+import network.selfevolving.parastoo.mobile.ui.components.ServerSession
 import network.selfevolving.parastoo.mobile.ui.components.StatCard
 import network.selfevolving.parastoo.mobile.ui.components.StatusDot
 import network.selfevolving.parastoo.mobile.ui.components.rememberSession
@@ -111,12 +113,33 @@ fun DashboardScreen(
     }
 
     LaunchedEffect(session) {
-        val api = session?.api ?: return@LaunchedEffect
+        var sess = session ?: return@LaunchedEffect
         while (true) {
             loading = true
             try {
-                status = withContext(Dispatchers.IO) { api.status() }
+                status = withContext(Dispatchers.IO) { sess.api.status() }
                 error = null
+            } catch (e: AccessAgentApi.ApiException) {
+                // v0.5.6 — فرمان مالک ۲۰۲۶-۱۱-۱۲ («الگوی مخرب آپدیت»): 401 یعنی
+                // توکنِ گوشی با سرور هم‌گام نیست؛ بازیابی درون‌سیستمی (رمز SSH
+                // گاوصندوق + کلید میزبان پین‌شده) — نه حذف/افزودن دوباره با رمز.
+                var recovered = false
+                if (e.code == 401 || e.code == 403) {
+                    val r = withContext(Dispatchers.IO) {
+                        SessionRecovery.recover(context, sess.profile)
+                    }
+                    if (r != null) {
+                        sess = ServerSession(
+                            r.profile,
+                            AccessAgentApi(r.profile.url, r.profile.certSha256, r.adminToken),
+                            r.adminToken,
+                        )
+                        recovered = true
+                    }
+                }
+                if (!recovered) {
+                    error = e.message ?: e.javaClass.simpleName
+                }
             } catch (e: Exception) {
                 error = e.message ?: e.javaClass.simpleName
             } finally {
@@ -153,7 +176,7 @@ fun DashboardScreen(
                     modifier = Modifier.fillMaxSize().padding(24.dp),
                     icon = Icons.Rounded.Dns,
                     title = "این سرور آماده نیست",
-                    body = "توکن ادمین روی این گوشی پیدا نشد؛ سرور را از فهرست حذف و دوباره اضافه کنید.",
+                    body = "بازیابی خودکار (رمزِ ذخیره‌شدهٔ همین گوشی) هم ممکن نشد — رمز SSH روی سرور عوض شده یا در گاوصندوق نیست. حذف و افزودن دوباره آخرین راه است؛ رمز فقط همان یک بار پرسیده می‌شود.",
                 )
             }
         } else {

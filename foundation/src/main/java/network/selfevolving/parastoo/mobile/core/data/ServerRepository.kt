@@ -10,6 +10,7 @@ import androidx.room.PrimaryKey
 import androidx.room.Query
 import androidx.room.Room
 import androidx.room.RoomDatabase
+import androidx.room.Update
 import kotlinx.coroutines.flow.Flow
 
 @Entity(tableName = "servers")
@@ -31,6 +32,9 @@ interface ServerDao {
 
     @Insert
     suspend fun insert(e: ServerProfileEntity): Long
+
+    @Update
+    suspend fun update(e: ServerProfileEntity)
 
     @Delete
     suspend fun delete(e: ServerProfileEntity)
