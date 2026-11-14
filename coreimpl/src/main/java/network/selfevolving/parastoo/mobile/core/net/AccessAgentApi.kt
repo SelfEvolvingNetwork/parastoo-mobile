@@ -113,18 +113,29 @@ class AccessAgentApi(
         post(p("revoke_agent_sessions", "/api/admin/revoke-agent-sessions"), null)
 
     /**
-     * دعوت‌نامهٔ بی‌رمز کاربر-مند (پل v0.7.2→v0.8؛ فرمان مالک ۲۰۲۶-۱۱-۱۲):
-     * همان متنِ «sudo access-agent invite [for-user]» بدون SSH. دعوت به نام
-     * کاربر داده‌شده صادر می‌شود و URL آن شناسهٔ دعوت یک‌بارمصرف را دارد؛
-     * سرور در پاسخ GET عامل، رمز ۵ رقمی را خودش می‌سازد (عامل فقط چاپ می‌کند).
-     * فقط URL و هش گواهی — لورفتنش بی‌خطر است و اعتماد با تأیید انسانی ساخته
-     * می‌شود، نه با انتقال راز.
+     * دعوت‌نامهٔ نقش‌دار (پل v0.10؛ درس میدان ۲۰۲۶-۱۱-۱۴ «دعوت ناقص»): نقش باید
+     * صریح باشد — «owner» دعوت مالک (pinv_، قلمرو کامل عامل: اجرای دستور،
+     * توکن گیت‌هاب، وضعیت کامل) و «user» دعوت کاربر (uinv_، فقط وضعیت
+     * فیلترشده). پیش‌فرض مالک — این اپ ابزار مالک است و معادل «sudo
+     * access-agent invite owner». پل نقش نامعتبر/غایب را محافظه‌کارانه «user»
+     * می‌گیرد؛ همین قاعده این‌جا هم اعمال می‌شود تا دو طرف یک قاعده باشند
+     * (نقش ناشناخته → user). پل‌های قدیمی‌تر از v0.10 پارامتر role را نادیده
+     * می‌گیرند و دعوت عامل کامل قدیمی می‌دهند (سازگاری). for= فقط برچسب است
+     * (invited_by در گزارش رویداد)؛ نقش را عوض نمی‌کند. مسیر از هستهٔ هات
+     * می‌آید؛ هر query احتمالی در آن جدا و بازسازی می‌شود تا هیچ «?..?..»
+     * دوبلی ساخته نشود — منبع یگانهٔ نقش، همین کد است.
      */
-    fun agentInvite(forUser: String = ""): String {
-        val base = p("agent_invite", "/api/admin/invite")
-        val path = if (forUser.isBlank()) base
-        else base + "?for=" + java.net.URLEncoder.encode(forUser.trim(), "UTF-8")
-        return get(path).optString("invite")
+    fun agentInvite(forUser: String = "", role: String = "owner"): String {
+        val base = p("agent_invite", "/api/admin/invite").substringBefore('?')
+        val safeRole = when (role.trim().lowercase()) {
+            "owner", "user" -> role.trim().lowercase()
+            else -> "user" // هم‌قاعده با normalize_invite_role پل — محافظه‌کار
+        }
+        val params = mutableListOf("role=" + safeRole)
+        if (forUser.isNotBlank()) {
+            params.add("for=" + java.net.URLEncoder.encode(forUser.trim(), "UTF-8"))
+        }
+        return get(base + "?" + params.joinToString("&")).optString("invite")
     }
 
     /** وضعیت چرخهٔ عمر پرستو: نصب‌بودن، عملیات جاری، تهٔ لاگ (پل v0.5) */

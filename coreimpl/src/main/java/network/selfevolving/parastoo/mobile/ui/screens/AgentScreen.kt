@@ -28,6 +28,7 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExtendedFloatingActionButton
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -77,6 +78,7 @@ fun AgentScreen(serverId: Long, onBack: () -> Unit) {
     var handoffBlock by remember { mutableStateOf<String?>(null) }
     var inviteBlock by remember { mutableStateOf<String?>(null) }
     var inviteFor by remember { mutableStateOf("") }
+    var inviteRole by remember { mutableStateOf("owner") }
     var inviteLoading by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     var pairCode by remember { mutableStateOf("") }
@@ -100,7 +102,7 @@ fun AgentScreen(serverId: Long, onBack: () -> Unit) {
         error = null
         scope.launch {
             try {
-                inviteBlock = withContext(Dispatchers.IO) { api.agentInvite(inviteFor) }
+                inviteBlock = withContext(Dispatchers.IO) { api.agentInvite(inviteFor, inviteRole) }
             } catch (e: Exception) {
                 error = "دریافت دعوت‌نامه ناموفق: ${e.message}"
             } finally {
@@ -235,27 +237,49 @@ fun AgentScreen(serverId: Long, onBack: () -> Unit) {
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
 
-            // دعوت‌نامهٔ بی‌رمز کاربر-مند (پل v0.8) — راه پیشنهادی اتصال عامل: مالک
-            // نام کاربر را می‌نویسد و متن را کپی می‌کند؛ هیچ توکن یا رمزی در آن نیست
-            // و لورفتنش بی‌خطر است. سرور خودش رمز ۵ رقمی را می‌سازد؛ عامل فقط چاپش
-            // می‌کند و کاربر از مسیر امن همین اپ برای مالک می‌فرستد.
+            // دعوت‌نامهٔ نقش‌دار (پل v0.10؛ درس میدان ۲۰۲۶-۱۱-۱۴ «دعوت ناقص») —
+            // راه پیشنهادی اتصال عامل: مالک نقش را صریح انتخاب می‌کند (پیش‌فرض
+            // مالک)، متن یک‌خطی را کپی می‌کند و عامل با همان یک خط وصل می‌شود؛
+            // هیچ توکن یا رمزی در آن نیست و لورفتنش بی‌خطر است. نقش از پیشوند
+            // شناسهٔ دعوت در متن معلوم می‌شود: pinv_ مالک، uinv_ کاربر.
             Card(Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Text("دعوت‌نامهٔ عامل (بدون توکن) — راه پیشنهادی", style = MaterialTheme.typography.titleMedium)
                     Text(
                         "این متن را عیناً در چت عامل هوش مصنوعی خود بچسبانید. " +
-                            "هیچ توکن یا رمزی در آن نیست — لورفتنش بی‌خطر است. سرور خودش رمز ۵ رقمی " +
-                            "یک‌بارمصرف را می‌سازد و عامل فقط آن را برای کاربر چاپ می‌کند " +
-                            "(هیچ محاسبه‌ای روی عامل نیست)؛ کاربر رمز را از مسیر امن همین اپ " +
-                            "برای شما می‌فرستد و شما در بخش «تأیید عامل» پایین واردش می‌کنید.",
+                            "هیچ توکن یا رمزی در آن نیست — لورفتنش بی‌خطر است. عامل همان لینک را " +
+                            "یک‌بار باز می‌کند و توکن اتصالش را می‌گیرد؛ دعوت با همان اولین " +
+                            "مصرف می‌سوزد (یک دعوت = یک عامل).",
                         style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        FilterChip(
+                            selected = inviteRole == "owner",
+                            onClick = { inviteRole = "owner" },
+                            label = { Text("دعوت مالک (pinv_)") },
+                        )
+                        FilterChip(
+                            selected = inviteRole == "user",
+                            onClick = { inviteRole = "user" },
+                            label = { Text("دعوت کاربر (uinv_)") },
+                        )
+                    }
+                    Text(
+                        if (inviteRole == "owner")
+                            "نقش مالک: قلمرو کامل عامل — اجرای دستور روی سرور، توکن " +
+                                "گیت‌هاب برای پوش، وضعیت کامل؛ توکن اتصال ۳۰ روز اعتبار دارد."
+                        else
+                            "نقش کاربر: فقط سلامت و وضعیت فیلترشده — اجرای دستور و توکن " +
+                                "گیت‌هاب برای این عامل ممنوع است (403)؛ توکن اتصال ۲۴ ساعت.",
+                        style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                     if (inviteBlock == null) {
                         OutlinedTextField(
                             value = inviteFor,
                             onValueChange = { inviteFor = it.take(40) },
-                            label = { Text("به نام کدام کاربر؟ (اختیاری)") },
+                            label = { Text("برچسب دعوت — به نام چه کسی؟ (اختیاری)") },
                             singleLine = true,
                             modifier = Modifier.fillMaxWidth(),
                         )
@@ -263,13 +287,19 @@ fun AgentScreen(serverId: Long, onBack: () -> Unit) {
                             Text(if (inviteLoading) "در حال دریافت…" else "ساخت دعوت‌نامه")
                         }
                         Text(
-                            "دعوت به نام کاربر صادر می‌شود (یک دعوت = یک عامل؛ ۲۴ ساعت اعتبار). " +
-                                "اگر نامی ننویسید، دعوت مستقیماً به نام خودتان است.",
+                            "برچسب فقط نامی است که در گزارش رویدادهای پل می‌آید؛ نقش را عوض " +
+                                "نمی‌کند. یک دعوت = یک عامل؛ خود دعوت ۲۴ ساعت اعتبار دارد.",
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     } else {
                         CodeBlock(inviteBlock!!)
+                        Text(
+                            "صحت‌سنجی نقش: در متن بالا باید «${if (inviteRole == "owner") "pinv_" else "uinv_"}» را ببینید — " +
+                                "${if (inviteRole == "owner") "دعوت مالک (قلمرو کامل عامل)" else "دعوت کاربر (قلمرو محدود)"}.",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.primary,
+                        )
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             Button(onClick = {
                                 clipboard.setText(AnnotatedString(inviteBlock!!))
